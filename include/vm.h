@@ -4,7 +4,7 @@
 #include "memunit.h"
 #include "stack.h"
 #include "cpu.h"
-
+#include <memory>
 namespace lvm {
     class vm{
     public:
@@ -13,8 +13,7 @@ namespace lvm {
         void load_program(char* fileName, addr_t load_address);
         void run();
     private:
-        Memory memory;
-        Stack stack;
-        Cpu cpu_instance;
+        std::shared_ptr<Memory> memory;
+        std::shared_ptr<Cpu> cpu_instance;
     };
 }
