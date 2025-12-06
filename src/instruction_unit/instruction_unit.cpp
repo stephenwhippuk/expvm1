@@ -53,14 +53,22 @@ void InstructionUnit::load_program(const std::vector<byte_t>& program) {
     const Context* code_ctx = vmem_unit_.get_context(code_context_id_);
     auto code_accessor = code_ctx->create_paged_accessor(vmem_unit_, MemAccessMode::READ_WRITE);
     
-    // Write program to code space across pages
+    // Write program to code space across pages (optimized)
+    const size_t PAGE_SIZE = 256; // Assuming 256 bytes per page
+    size_t program_size = program.size();
     addr32_t addr = 0;
-    for (byte_t byte : program) {
-        page_t page = addr / 256;  // Assuming 256 bytes per page
-        addr_t offset = addr % 256;
+    while (addr < program_size) {
+        page_t page = addr / PAGE_SIZE;
         code_accessor->set_page(page);
-        code_accessor->write_byte(offset, byte);
-        addr++;
+        // Write all bytes for this page in one go
+        addr_t offset = addr % PAGE_SIZE;
+        size_t bytes_left_in_page = PAGE_SIZE - offset;
+        size_t bytes_left_in_program = program_size - addr;
+        size_t chunk_size = std::min(bytes_left_in_page, bytes_left_in_program);
+        for (size_t i = 0; i < chunk_size; ++i) {
+            code_accessor->write_byte(offset + i, program[addr + i]);
+        }
+        addr += chunk_size;
     }
 }
 
