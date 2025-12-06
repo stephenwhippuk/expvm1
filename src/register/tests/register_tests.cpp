@@ -1,15 +1,8 @@
 #include <gtest/gtest.h>
-#include "memsize.h"
 #include "register.h"
 #include "flags.h"
-#include "alu.h"
 
 using namespace lvm;
-
-// Basic sanity test
-TEST(SanityTest, BasicAssertion) {
-    EXPECT_EQ(1, 1);
-}
 
 // Test register operations
 TEST(RegisterTest, SetAndGetValue) {
@@ -86,4 +79,3 @@ TEST(RegisterWithFlagsTest, DecrementSetsFlags) {
     EXPECT_EQ(reg.get_value(), 0xFFFF);
     EXPECT_TRUE(reg.is_flag_set(Flag::CARRY));
 }
-

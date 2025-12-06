@@ -1,0 +1,13 @@
+# brief
+- mem unit is a virtual memory manager
+- it maps a 40 bit virtual memory space
+- it is responsible for allocating and deallocating real memory to regions of this virtual space
+- has 2 modes protected and unprotected 
+- this space is primarilly allocated to contexts
+- a context represents a contiguous virtual addess space that
+- - is managed by an accessor type
+- - has its own format and thus interface to the outside
+- - actual physical memory is allocated as needed by mem unit
+- - contexts must be created in unprotected mode 
+- - each can have 32 bits of addressable space at most. 
+- - contexts have an id that is used to retrieve the appropriate accessor as needed

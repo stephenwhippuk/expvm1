@@ -39,8 +39,8 @@
 #define OPCODE_PEEKB_REG_OFF_B  0x18  // Peek byte at stack base offset
 #define OPCODE_PEEKFB_REG_OFF_B 0x19  // Peek byte at frame offset
 #define OPCODE_FLSH             0x1A  // Flush stack to frame
-#define OPCODE_PAGE_IMM_W       0x1B  // Set memory page with immediate word
-#define OPCODE_PAGE_REG         0x1C  // Set memory page with register
+#define OPCODE_PAGE_IMM_CTX     0x1B  // Set memory page and context with immediate values (page word + context word)
+#define OPCODE_PAGE_REG_CTX     0x1C  // Set memory page with register and context with immediate (register + context word)
 #define OPCODE_SETF_ADDR        0x1D  // Set stack frame
 
 // Jump/Branch operations
@@ -197,8 +197,8 @@ namespace lvm {
      if (opcode == OPCODE_PEEKB_REG_OFF_B) return 3;
      if (opcode == OPCODE_PEEKFB_REG_OFF_B) return 3;
      if (opcode == OPCODE_FLSH) return 0;
-     if (opcode == OPCODE_PAGE_IMM_W) return 2;
-     if (opcode == OPCODE_PAGE_REG) return 1;
+     if (opcode == OPCODE_PAGE_IMM_CTX) return 4;  // page (2 bytes) + context (2 bytes)
+     if (opcode == OPCODE_PAGE_REG_CTX) return 3;  // register (1 byte) + context (2 bytes)
      if (opcode == OPCODE_SETF_ADDR) return 2;
      // Jump operations
      if (opcode == OPCODE_JMP_ADDR) return 2;

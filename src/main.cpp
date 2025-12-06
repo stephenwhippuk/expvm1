@@ -1,6 +1,6 @@
 #include <iostream>
-#include "errors.h"
-#include "vm.h"
+#include "lvm.h"
+
 int main(int argc, char** argv) {
     if(argc < 3){
         std::cerr << "Usage: " << argv[0] << " <program file>" << " <load address>" << std::endl;

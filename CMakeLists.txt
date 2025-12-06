@@ -11,6 +11,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Enable testing
 enable_testing()
+set(BUILD_TESTING ON)
 
 # Fetch Google Test
 include(FetchContent)
@@ -23,41 +24,43 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-# Include directories
+# Legacy include directory (for main.cpp and transition period)
+# TODO: Eventually migrate all includes to module-specific includes
 include_directories(include)
 
-# Collect library source files (exclude main programs)
-file(GLOB LIB_SOURCES 
-    "src/memunit.cpp" 
-    "src/mem_access.cpp" 
-    "src/stack.cpp" 
-    "src/stack_access.cpp"
-    "src/cpu.cpp" 
-    "src/cpu_alu_ops.cpp"
-    "src/vm.cpp"
-    "src/alu.cpp"
-    "src/register.cpp"
-    "src/flags.cpp"
-    "src/helpers.cpp"
-    "src/instruction_unit.cpp"
-    "src/instruction_unit_access.cpp"
-)
+# =============================================================================
+# Add all library subdirectories
+# =============================================================================
+# Each library has its own CMakeLists.txt defining its build configuration
+# and dependencies. Libraries are built in dependency order.
+
+add_subdirectory(src/memunit)
+add_subdirectory(src/helpers)
+add_subdirectory(src/register)
+add_subdirectory(src/alu)
+add_subdirectory(src/stack)
+add_subdirectory(src/instruction_unit)
+add_subdirectory(src/cpu)
+add_subdirectory(src/vm)
+
+# =============================================================================
+# Executables
+# =============================================================================
 
 # Add the VM test executable (original main.cpp)
-add_executable(lvm src/main.cpp ${LIB_SOURCES})
+add_executable(lvm src/main.cpp)
 
-# Add test executable
-add_executable(lvm_tests 
-    tests/test_main.cpp
-    ${LIB_SOURCES}
+target_link_libraries(lvm PRIVATE
+    lvm_vm
+    lvm_cpu
+    lvm_memunit
 )
 
-target_link_libraries(lvm_tests 
-    GTest::gtest_main
-)
-
-include(GoogleTest)
-gtest_discover_tests(lvm_tests)
+# =============================================================================
+# Legacy Test Support (Optional - can be removed once all tests are modular)
+# =============================================================================
+# Individual library tests are now defined in their respective CMakeLists.txt
+# This section can be kept for integration tests or removed entirely
 
 # # Add the assembler executable
 # add_executable(slmasm src/assembler.cpp)

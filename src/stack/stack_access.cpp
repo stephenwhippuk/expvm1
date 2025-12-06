@@ -16,6 +16,11 @@ byte_t Stack_Accessor::peek_byte() const {
     return stack_ref->peek();
 }   
 
+addr_t Stack_Accessor::get_top() const {
+    return stack_ref->get_top();
+}
+
+
 word_t Stack_Accessor::peek_word() const {
     return stack_ref->peek_word();
 }

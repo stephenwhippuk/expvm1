@@ -8,6 +8,7 @@
 #include "register.h"
 #include "instruction_unit.h"
 #include "alu.h"
+#include "vaddr.h"
 #include <memory>
 
 namespace lvm {

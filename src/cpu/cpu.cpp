@@ -388,14 +388,20 @@ namespace lvm {
                 break;
             }
 
-            case OPCODE_PAGE_IMM_W: {
+            case OPCODE_PAGE_IMM_CTX: {
                 page_t page = combine_bytes_to_address(params[0], params[1]);
+                context_id_t context = combine_bytes_to_address(params[2], params[3]);
+                // TODO: Implement context switching in memory manager
+                // For now, just switch page (legacy behavior)
                 memory_ref->switch_page(page);
                 break;
             }
-            case OPCODE_PAGE_REG: {
+            case OPCODE_PAGE_REG_CTX: {
                 auto reg = get_register_by_code(params[0]);
                 page_t page = static_cast<page_t>(reg->get_value());
+                context_id_t context = combine_bytes_to_address(params[1], params[2]);
+                // TODO: Implement context switching in memory manager
+                // For now, just switch page (legacy behavior)
                 memory_ref->switch_page(page);
                 break;
             }

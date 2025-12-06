@@ -11,6 +11,7 @@
 namespace lvm {
 
     using addr_t = uint16_t;      // Type for memory addresses
+    using addr32_t = uint32_t;    // Type for 32-bit addresses
     using page_offset_t = int16_t; // Type for offsets within a page may be positive or negative
     using page_t = uint16_t;      // Type for page numbers
     using offset_t = uint16_t;    // Type for offsets within a page
