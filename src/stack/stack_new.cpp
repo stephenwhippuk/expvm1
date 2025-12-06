@@ -114,10 +114,14 @@ word_t Stack2::peek_word_from_base(addr32_t offset) const {
 }
 
 byte_t Stack2::peek_byte_from_frame(addr32_t offset) const {
-    // Frame pointer sits at -1 relative to frame, so first position is fp_ + 1
-    addr32_t absolute_offset = fp_ + 1 + offset;
+    // FP sits at -1 relative to frame means FP points one position before frame data
+    // But frame offset 0 should access the first item after FP, which is at FP+1
+    // Wait - after set_frame_to_top, if we pushed flag at pos 0, sp=1, fp=0
+    // The flag IS the first frame item, at position 0 where FP points
+    // So frame offset 0 = FP + 0, not FP + 1
+    addr32_t absolute_offset = static_cast<addr32_t>(fp_) + offset;
     
-    if (absolute_offset >= sp_) {
+    if (absolute_offset >= sp_ || fp_ < 0) {
         throw lvm::runtime_error("Offset exceeds stack size");
     }
     
@@ -127,10 +131,10 @@ byte_t Stack2::peek_byte_from_frame(addr32_t offset) const {
 }
 
 word_t Stack2::peek_word_from_frame(addr32_t offset) const {
-    // Frame pointer sits at -1 relative to frame, so first position is fp_ + 1
-    addr32_t absolute_offset = fp_ + 1 + offset;
+    // Frame offset 0 accesses where FP points (first protected item)
+    addr32_t absolute_offset = static_cast<addr32_t>(fp_) + offset;
     
-    if (absolute_offset + 2 > sp_) {
+    if (absolute_offset + 2 > sp_ || fp_ < 0) {
         throw lvm::runtime_error("Offset exceeds stack size");
     }
     

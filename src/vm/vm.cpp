@@ -2,11 +2,11 @@
 
 using namespace lvm;
 
-vm::vm(page_t pages, memsize_t page_size, memsize_t stack_size)
-    : memory(std::make_shared<Memory>(page_size, pages)),
-      cpu_instance(std::make_shared<Cpu>(memory, stack_size, 0, 32765))
+vm::vm(addr32_t stack_capacity, addr32_t code_capacity)
+    : vmem_unit(std::make_unique<VMemUnit>()),
+      cpu_instance(std::make_shared<Cpu>(*vmem_unit, stack_capacity, code_capacity))
 {
-    // VM initialized with memory and stack
+    // VM initialized with virtual memory unit
     cpu_instance->initialize();
 }
 

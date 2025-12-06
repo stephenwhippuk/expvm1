@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 #include "memsize.h"
 #include "instruction_unit.h"
-#include "memunit.h"
-#include "stack.h"
+#include "vmemunit.h"
+#include "stack_new.h"
 #include "flags.h"
 #include "accessMode.h"
 
@@ -11,32 +11,42 @@ using namespace lvm;
 // InstructionUnit test fixture
 class InstructionUnitTest : public ::testing::Test {
 protected:
-    std::shared_ptr<Memory> memory;
+    std::unique_ptr<VMemUnit> vmem_unit;
     std::shared_ptr<Flags> flags;
+    std::unique_ptr<Stack2> stack;
+    context_id_t code_context_id;
     
     void SetUp() override {
-        memory = std::make_shared<Memory>(256, 256);
+        vmem_unit = std::make_unique<VMemUnit>();
         flags = std::make_shared<Flags>();
-        memory->unprotected_mode();
+        
+        // Create stack with 1KB capacity (in UNPROTECTED mode)
+        stack = std::make_unique<Stack2>(*vmem_unit, 1024);
+        
+        // Create code context with 64KB capacity (in UNPROTECTED mode)
+        code_context_id = vmem_unit->create_context(65536);
+        
+        // Set protected mode before creating accessors
+        vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     }
     
-    std::unique_ptr<Stack> stack; // Keep stack alive
-    
-    std::unique_ptr<InstructionUnit> createInstructionUnit(memsize_t size = 1024) {
-        // Create stack first and keep it alive
-        stack = std::make_unique<Stack>(memory, 0, 0x0000, 512);
+    std::unique_ptr<InstructionUnit> createInstructionUnit() {
+        // Get stack accessor in PROTECTED mode
         auto stack_accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
         
-        // Create instruction unit on same page 0, after the stack
+        // Switch to UNPROTECTED mode for InstructionUnit creation
+        vmem_unit->set_mode(VMemUnit::Mode::UNPROTECTED);
+        
         auto iu = std::make_unique<InstructionUnit>(
-            memory,
+            *vmem_unit,
+            code_context_id,
             std::move(stack_accessor),
-            flags,
-            512,  // start address (after stack)
-            size
+            flags
         );
         
-        memory->protected_mode();
+        // Switch back to PROTECTED mode for normal operation
+        vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+        
         return iu;
     }
 };
@@ -291,9 +301,26 @@ TEST_F(InstructionUnitTest, ReadOnlyAccessor) {
 
 // Test program too large
 TEST_F(InstructionUnitTest, ProgramTooLarge) {
-    auto iu = createInstructionUnit(100); // Small instruction unit
+    // Create a small code context (256 bytes = 1 page) in UNPROTECTED mode
+    vmem_unit->set_mode(VMemUnit::Mode::UNPROTECTED);
+    context_id_t small_code_ctx = vmem_unit->create_context(256);
+    
+    // Get stack accessor in PROTECTED mode
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto stack_accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
+    
+    // Create InstructionUnit in UNPROTECTED mode
+    vmem_unit->set_mode(VMemUnit::Mode::UNPROTECTED);
+    auto iu = std::make_unique<InstructionUnit>(
+        *vmem_unit,
+        small_code_ctx,
+        std::move(stack_accessor),
+        flags
+    );
+    
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = iu->get_accessor(MemAccessMode::READ_WRITE);
     
-    std::vector<byte_t> large_program(200, 0xFF); // Too large
+    std::vector<byte_t> large_program(300, 0xFF); // Too large for 256 bytes
     EXPECT_THROW(accessor->Load_Program(large_program), std::runtime_error);
 }

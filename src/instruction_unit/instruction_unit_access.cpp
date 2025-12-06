@@ -1,7 +1,7 @@
 #include "instruction_unit.h"
 #include "errors.h"
-#include "stack.h"
-#include "memunit.h"
+#include "stack_new.h"
+#include "vmemunit.h"
 
 using namespace lvm;
 
@@ -17,15 +17,27 @@ word_t InstructionUnit_Accessor::get_IR() const {
 }
 
 word_t InstructionUnit_Accessor::readByte_At_IR() const {
-    addr_t ir_value = instruction_unit_ref->ir_register->get_value();
-    return instruction_unit_ref->memory_accessor->read_byte(ir_value);
+    addr32_t ir_value = instruction_unit_ref->ir_register->get_value();
+    const Context* code_ctx = instruction_unit_ref->vmem_unit_.get_context(instruction_unit_ref->code_context_id_);
+    auto code_accessor = code_ctx->create_paged_accessor(instruction_unit_ref->vmem_unit_, MemAccessMode::READ_ONLY);
+    
+    page_t page = ir_value / 256;  // Assuming 256 bytes per page
+    addr_t offset = ir_value % 256;
+    code_accessor->set_page(page);
+    
+    return code_accessor->read_byte(offset);
 }
 
 word_t InstructionUnit_Accessor::readWWord_At_IR() const {
-    addr_t ir_value = instruction_unit_ref->ir_register->get_value();
-    word_t low = instruction_unit_ref->memory_accessor->read_byte(ir_value);
-    word_t high = instruction_unit_ref->memory_accessor->read_byte(ir_value + 1);
-    return (high << 8) | low;
+    addr32_t ir_value = instruction_unit_ref->ir_register->get_value();
+    const Context* code_ctx = instruction_unit_ref->vmem_unit_.get_context(instruction_unit_ref->code_context_id_);
+    auto code_accessor = code_ctx->create_paged_accessor(instruction_unit_ref->vmem_unit_, MemAccessMode::READ_ONLY);
+    
+    page_t page = ir_value / 256;
+    addr_t offset = ir_value % 256;
+    code_accessor->set_page(page);
+    
+    return code_accessor->read_word(offset);
 }
 
 // Read/Write Access Methods

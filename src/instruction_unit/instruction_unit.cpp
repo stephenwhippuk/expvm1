@@ -1,24 +1,25 @@
 #include "instruction_unit.h"
 #include "errors.h"
-#include "stack.h"
-#include "memunit.h"
+#include "stack_new.h"
+#include "vmemunit.h"
 
 #include <iostream>
 using namespace lvm;
 
-InstructionUnit::InstructionUnit(std::shared_ptr<Memory> memory, std::unique_ptr<Stack_Accessor> stack_ptr, std::shared_ptr<Flags> flags_ptr, addr_t start_address, memsize_t size)
-       : stack_accessor(std::move(stack_ptr))
+InstructionUnit::InstructionUnit(VMemUnit& vmem_unit, context_id_t code_context_id, std::unique_ptr<StackAccessor2> stack_ptr, std::shared_ptr<Flags> flags_ptr)
+       : vmem_unit_(vmem_unit),
+         code_context_id_(code_context_id),
+         stack_accessor(std::move(stack_ptr))
 {
     // assert stack_ptr is valid
     if (!stack_accessor) {
-        throw lvm::runtime_error("InstructionUnit requires a valid Stack_Accessor");
+        throw lvm::runtime_error("InstructionUnit requires a valid StackAccessor2");
     }
     // assert memory is in unprotected mode
-    if(memory->is_protected_mode()) {
-        throw lvm::runtime_error("InstructionUnit must be created in unprotected mode memory");
+    if(vmem_unit_.is_protected()) {
+        throw lvm::runtime_error("InstructionUnit must be created in unprotected mode");
     }
 
-    memory_accessor = memory->reserve_space(0, start_address, size, MemAccessMode::READ_WRITE);
     ir_register = std::make_unique<Register>(flags_ptr);
     flags = flags_ptr;
 }
@@ -49,91 +50,73 @@ void InstructionUnit::jump_to_address_conditional(addr_t address, Flag flag, boo
 }
 
 void InstructionUnit::load_program(const std::vector<byte_t>& program) {
-    if (program.size() > memory_accessor->get_size()) {
-        throw lvm::runtime_error("Program size exceeds InstructionUnit memory size");
+    const Context* code_ctx = vmem_unit_.get_context(code_context_id_);
+    auto code_accessor = code_ctx->create_paged_accessor(vmem_unit_, MemAccessMode::READ_WRITE);
+    
+    // Write program to code space across pages (optimized)
+    const size_t PAGE_SIZE = 256; // Assuming 256 bytes per page
+    size_t program_size = program.size();
+    addr32_t addr = 0;
+    while (addr < program_size) {
+        page_t page = addr / PAGE_SIZE;
+        code_accessor->set_page(page);
+        // Write all bytes for this page in one go
+        addr_t offset = addr % PAGE_SIZE;
+        size_t bytes_left_in_page = PAGE_SIZE - offset;
+        size_t bytes_left_in_program = program_size - addr;
+        size_t chunk_size = std::min(bytes_left_in_page, bytes_left_in_program);
+        for (size_t i = 0; i < chunk_size; ++i) {
+            code_accessor->write_byte(offset + i, program[addr + i]);
+        }
+        addr += chunk_size;
     }
-    memory_accessor->bulk_write(0, program);
 }
 
 void InstructionUnit::call_subroutine(addr_t address, bool with_return_value){
-    // Save current state
+
     ReturnStackItem item;
     item.return_address = ir_register->get_value();
-    item.frame_pointer = stack_accessor->get_frame_register();
+    item.frame_pointer = stack_accessor->get_fp();
 
     return_stack.push_back(item);
 
-    // Jump to subroutine address
     ir_register->set_value(address);
-    std::cout << "1 fp = " << stack_accessor->get_frame_register() << " sp = " << stack_accessor->get_top() << " size = " << stack_accessor->get_size() << std::endl;
-    // Push the has_return_value flag first
+
     if (with_return_value) {
-        stack_accessor->push(1);
+        stack_accessor->push_byte(1);
     }
     else {
-        stack_accessor->push(0);
+        stack_accessor->push_byte(0);
     }
-     std::cout << "2 fp = " << stack_accessor->get_frame_register() << " sp = " << stack_accessor->get_top() << " size = " << stack_accessor->get_size() << std::endl;
-    // Push the has_return_value flag first
-    // Now set FP = SP, so the flag is AT FP
-    // This protects the flag from user code (which must push before accessing anything)
+
     stack_accessor->set_frame_to_top();
-     std::cout << "fp = " << stack_accessor->get_frame_register() << " sp = " << stack_accessor->get_top() << " size = " << stack_accessor->get_size() << std::endl;
-    // Push the has_return_value flag first
+   
 }
 
 void InstructionUnit::return_from_subroutine() {
     if (return_stack.empty()) {
         throw lvm::runtime_error("Return stack underflow on return from subroutine");
     }
-    // Restore state
+
     ReturnStackItem item = return_stack.back();
     return_stack.pop_back();
 
     ir_register->set_value(item.return_address);
     
-    // The has_return_value flag is stored AT FP (offset 0)
-    // It's protected from user code because they must push before accessing anything
-     std::cout << "4 fp = " << stack_accessor->get_frame_register() << " sp = " << stack_accessor->get_top() << " size = " << stack_accessor->get_size() << std::endl;
-    // Push the has_return_value flag first
+
     byte_t has_return_value = stack_accessor->peek_byte_from_frame(0);
     
     if(has_return_value) {
-        // Pop the return value (should have been pushed by subroutine)
-        word_t returnValue = stack_accessor->pop_word();
-         std::cout << "5 fp = " << stack_accessor->get_frame_register() << " sp = " << stack_accessor->get_top() << " size = " << stack_accessor->get_size() << std::endl;
-    // Push the has_return_value flag first
-        // Flush clears local variables (sets FP = SP), flag is now AT FP=SP
+       
+        word_t returnValue = stack_accessor->pop_word(); 
         stack_accessor->flush();
-         std::cout << "6 fp = " << stack_accessor->get_frame_register() << " sp = " << stack_accessor->get_top() << " size = " << stack_accessor->get_size() << std::endl;
-    // Push the has_return_value flag first
-        // Restore the old frame pointer
-        stack_accessor->set_frame_register(item.frame_pointer);
-         std::cout << "7 fp = " << stack_accessor->get_frame_register() << " sp = " << stack_accessor->get_top() << " size = " << stack_accessor->get_size() << std::endl;
-    // Push the has_return_value flag first
-        // Now pop the flag (SP points to it, FP has been restored so not empty)
-        stack_accessor->pop();
-         std::cout << "8 fp = " << stack_accessor->get_frame_register() << " sp = " << stack_accessor->get_top() << " size = " << stack_accessor->get_size() << std::endl;
-    // Push the has_return_value flag first
-        // Push return value back onto restored stack
+        stack_accessor->set_frame_pointer(item.frame_pointer);
+        stack_accessor->pop_byte();
         stack_accessor->push_word(returnValue);
-         std::cout << "9 fp = " << stack_accessor->get_frame_register() << " sp = " << stack_accessor->get_top() << " size = " << stack_accessor->get_size() << std::endl;
-    // Push the has_return_value flag first
     }
     else {
-        // Flush clears local variables (sets FP = SP), flag is now AT FP=SP
-         std::cout << "10 fp = " << stack_accessor->get_frame_register() << " sp = " << stack_accessor->get_top() << " size = " << stack_accessor->get_size() << std::endl;
-    // Push the has_return_value flag first
         stack_accessor->flush();
-         std::cout << "11 fp = " << stack_accessor->get_frame_register() << " sp = " << stack_accessor->get_top() << " size = " << stack_accessor->get_size() << std::endl;
-    // Push the has_return_value flag first
-        // Restore the old frame pointer
-        stack_accessor->set_frame_register(item.frame_pointer);
-        // Now pop the flag (SP points to it, FP has been restored so not empty)
-         std::cout << "12 fp = " << stack_accessor->get_frame_register() << " sp = " << stack_accessor->get_top() << " size = " << stack_accessor->get_size() << std::endl;
-    // Push the has_return_value flag first
-        stack_accessor->pop();
-         std::cout << "13 fp = " << stack_accessor->get_frame_register() << " sp = " << stack_accessor->get_top() << " size = " << stack_accessor->get_size() << std::endl;
-    // Push the has_return_value flag first
+        stack_accessor->set_frame_pointer(item.frame_pointer);
+        stack_accessor->pop_byte();
     }
 }

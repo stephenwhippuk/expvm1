@@ -3,8 +3,9 @@
 #include "accessMode.h"
 #include <memory>
 #include "memsize.h"
-#include "mem_access.h"
-#include "stack.h"
+#include "paged_memory_accessor.h"
+#include "vmemunit.h"
+#include "stack_new.h"
 namespace lvm{
 
     class InstructionUnit; // Forward declaration
@@ -38,19 +39,20 @@ namespace lvm{
 
     class InstructionUnit{
     public:
-        InstructionUnit(std::shared_ptr<Memory> memory, std::unique_ptr<Stack_Accessor> stack_ptr, std::shared_ptr<Flags> flags_ptr, addr_t start_address = 0, memsize_t size = 32765);
+        InstructionUnit(VMemUnit& vmem_unit, context_id_t code_context_id, std::unique_ptr<StackAccessor2> stack_ptr, std::shared_ptr<Flags> flags_ptr);
         ~InstructionUnit();
         std::unique_ptr<InstructionUnit_Accessor> get_accessor(MemAccessMode mode);
     private:
     friend class InstructionUnit_Accessor;    
+        VMemUnit& vmem_unit_;
+        context_id_t code_context_id_;
         std::unique_ptr<Register> ir_register;
         std::shared_ptr<Flags> flags;
-        std::unique_ptr<MemoryAccessor> memory_accessor;
-        std::unique_ptr<Stack_Accessor> stack_accessor;
+        std::unique_ptr<StackAccessor2> stack_accessor;
 
         struct ReturnStackItem {
             addr_t return_address;
-            addr_t frame_pointer;
+            int32_t frame_pointer;  // Signed to support -1 initial value
         };
         std::vector<ReturnStackItem> return_stack;
         

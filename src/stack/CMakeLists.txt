@@ -24,6 +24,7 @@ if(BUILD_TESTING)
     add_executable(lvm_stack_tests
         tests/stack_tests.cpp
         tests/stack_new_tests.cpp
+        tests/stack_subroutine_tests.cpp
     )
     
     target_link_libraries(lvm_stack_tests PRIVATE
