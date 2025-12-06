@@ -27,6 +27,11 @@
 #define OPCODE_STAH_ADDR_REG_B  0x0E  // STAH (1) - Store high byte to address
 #define OPCODE_STAL_ADDR_REG_B  0x0F  // Store low byte to address
 
+// Load operations (register-indirect addressing)
+#define OPCODE_LDA_REG_REGADDR_W   0x72  // LDA (2) - Load word from address in register to register
+#define OPCODE_LDAH_REG_REGADDR_B  0x73  // LDAH (2) - Load byte from address in register to register high
+#define OPCODE_LDAL_REG_REGADDR_B  0x74  // LDAL (2) - Load byte from address in register to register low
+
 // Stack operations
 #define OPCODE_PUSH_REG_W       0x10  // Push word register to stack
 #define OPCODE_PUSHH_REG_B      0x11  // Push high byte to stack
@@ -300,6 +305,10 @@ namespace lvm {
      if (opcode == OPCODE_CPH_REG_IMM_B) return 2;
      if (opcode == OPCODE_CPL_REG_REG) return 2;
      if (opcode == OPCODE_CPL_REG_IMM_B) return 2;
+     // Register-indirect load operations
+     if (opcode == OPCODE_LDA_REG_REGADDR_W) return 2;
+     if (opcode == OPCODE_LDAH_REG_REGADDR_B) return 2;
+     if (opcode == OPCODE_LDAL_REG_REGADDR_B) return 2;
      // System call
      if (opcode == OPCODE_SYS_FUNC) return 2;
      // All others

@@ -20,3 +20,7 @@
 
 - each unit should always be its own project in the tree, 
 
+- documentation is in specification folder
+- the reference guides are in the reference sub folder
+- these should be updated to reflect changes where appropriate
+

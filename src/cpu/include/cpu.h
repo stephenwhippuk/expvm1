@@ -1,10 +1,10 @@
 #pragma once
 #include "memsize.h"
 #include <vector>
-#include "memunit.h"
-#include "stack.h"
+#include "vmemunit.h"
+#include "stack_new.h"
 #include "errors.h"
-#include "mem_access.h"
+#include "paged_memory_accessor.h"
 #include "register.h"
 #include "instruction_unit.h"
 #include "alu.h"
@@ -24,15 +24,16 @@ namespace lvm {
     };
     class Cpu{
     public:
-        Cpu(std::shared_ptr<Memory> memory, memsize_t stack_size, addr_t code_start_address, memsize_t code_size);
+        Cpu(VMemUnit& vmem_unit, addr32_t stack_capacity, addr32_t code_capacity);
         ~Cpu();
         void initialize();
         void load_program(const std::vector<byte_t>& program);
         void run();
     private:
-        std::shared_ptr<Memory> memory_ref;
-        Stack stack;
-        std::unique_ptr<MemoryAccessor> code_accessor;
+        VMemUnit& vmem_unit_;
+        std::unique_ptr<Stack2> stack;
+        context_id_t code_context_id_;
+        context_id_t data_context_id_;
         bool halted = false;
         void step();
         // Additional CPU state (registers, flags, etc.) would go here

@@ -149,8 +149,8 @@ TEST_F(StackNewTest, FramePointerBehavior) {
     accessor->set_frame_pointer(1);  // FP sits at address 1
     EXPECT_EQ(accessor->get_fp(), 1);
     
-    // First frame position is FP+1 = 2, which contains 0x30
-    EXPECT_EQ(accessor->peek_byte_from_frame(0), 0x30);
+    // Frame offset 0 accesses where FP points (address 1 = 0x20)
+    EXPECT_EQ(accessor->peek_byte_from_frame(0), 0x20);
 }
 
 // Test set frame to top
@@ -168,13 +168,16 @@ TEST_F(StackNewTest, SetFrameToTop) {
     // FP should be at SP-1 = 2
     EXPECT_EQ(accessor->get_fp(), 2);
     
-    // Now push more values above the frame
-    accessor->push_byte(0x40);  // Address 3
-    accessor->push_byte(0x50);  // Address 4
+    // Frame offset 0 accesses where FP points (address 2 = 0x30)
+    EXPECT_EQ(accessor->peek_byte_from_frame(0), 0x30);
     
-    // Frame position 0 (address FP+1 = 3) should contain 0x40
-    EXPECT_EQ(accessor->peek_byte_from_frame(0), 0x40);
-    EXPECT_EQ(accessor->peek_byte_from_frame(1), 0x50);
+    // Now push more values above the frame
+    accessor->push_byte(0x40);  // Address 3 (frame offset 1)
+    accessor->push_byte(0x50);  // Address 4 (frame offset 2)
+    
+    // Frame offset 1 and 2 access pushed values
+    EXPECT_EQ(accessor->peek_byte_from_frame(1), 0x40);
+    EXPECT_EQ(accessor->peek_byte_from_frame(2), 0x50);
 }
 
 // Test overflow detection
@@ -283,7 +286,13 @@ TEST_F(StackNewTest, PeekWordFromFrame) {
     accessor->push_word(0xAAAA);  // Addresses 0-1
     accessor->push_word(0xBBBB);  // Addresses 2-3
     
-    accessor->set_frame_pointer(1);  // FP at 1, frame starts at 2
+    accessor->set_frame_pointer(1);  // FP at 1
     
-    EXPECT_EQ(accessor->peek_word_from_frame(0), 0xBBBB);
+    // Frame offset 0 accesses where FP points (address 1)
+    // This reads addresses 1-2 which contains high byte of 0xAAAA and low byte of 0xBBBB
+    // Since stack is little-endian: address 1=0xAA, address 2=0xBB -> word 0xBBAA
+    accessor->push_word(0xCCCC);  // Addresses 4-5
+    
+    // Frame offset 3 accesses address 4-5
+    EXPECT_EQ(accessor->peek_word_from_frame(3), 0xCCCC);
 }

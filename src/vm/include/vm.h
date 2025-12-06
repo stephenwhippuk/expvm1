@@ -1,19 +1,19 @@
 #pragma once
 #include "memsize.h"
 #include <vector>
-#include "memunit.h"
-#include "stack.h"
+#include "vmemunit.h"
+#include "stack_new.h"
 #include "cpu.h"
 #include <memory>
 namespace lvm {
     class vm{
     public:
-        vm(page_t pages, memsize_t page_size, memsize_t stack_size);
+        vm(addr32_t stack_capacity, addr32_t code_capacity);
         ~vm();
         void load_program(char* fileName, addr_t load_address);
         void run();
     private:
-        std::shared_ptr<Memory> memory;
+        std::unique_ptr<VMemUnit> vmem_unit;
         std::shared_ptr<Cpu> cpu_instance;
     };
 }

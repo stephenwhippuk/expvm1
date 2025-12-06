@@ -113,5 +113,8 @@ Decimal	HEX	OP	Arg1	Size	Arg2	Size	Description
 111	0x6F	CPH	REG	BYTE	VALUE	BYTE	Compare High Byte of register with BYTE. If a < b then set AX = -1 if a= b then set AX = 0 and if a>b set AX = 1
 112	0x70	CPL	REG	BYTE	REG	BYTE	Compare Low Bytes of 2 registers . If a < b then set AX = -1 if a= b then set AX = 0 and if a>b set AX = 1
 113	0x71	CPL	REG	BYTE	VALUE	BYTE	Compare Low byte of register with BYTE  If a < b then set AX = -1 if a= b then set AX = 0 and if a>b set AX = 1
+114	0x72	LDA (2)	REG	BYTE	REG	BYTE	Loads a word from memory at address stored in second register into first register
+115	0x73	LDAH (2)	REG	BYTE	REG	BYTE	Loads a byte from memory at address stored in second register into high byte of first register
+116	0x74	LDAL (2)	REG	BYTE	REG	BYTE	Loads a byte from memory at address stored in second register into low byte of first register
 127	0x7F	SYS	FUNC	WORD	-	-	Call system routine
 128	0x80	-	-	-	-	-	All higher ops reserved for extended op sets
