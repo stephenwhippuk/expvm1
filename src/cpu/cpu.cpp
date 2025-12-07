@@ -1,40 +1,56 @@
 #include "cpu.h"
 #include "opcodes.h"
 #include "helpers.h"
+#include "instruction_unit.h"
+#include "stack.h"
+#include "vmemunit.h"
+#include "alu.h"
+#include "context.h"
+
 namespace lvm {
+
+// Helper function to get concrete VMemUnit from interface
+// Safe because VM always injects a VMemUnit instance
+inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
+    return static_cast<VMemUnit&>(*interface);
+}
 
     // Array indexed by opcode byte, value is number of additional parameter bytes
     // Calculated from ops.txt: BYTE=1, WORD=2, sum all arg sizes
 
 
-    Cpu::Cpu(VMemUnit& vmem_unit, addr32_t stack_capacity, addr32_t code_capacity)
-        :   vmem_unit_(vmem_unit),
+    Cpu::Cpu(std::shared_ptr<IVMemUnit> vmem_unit, addr32_t stack_capacity, addr32_t code_capacity)
+        :   vmem_unit_(std::move(vmem_unit)),
             flags(std::make_shared<Flags>()),
             AX(std::make_shared<Register>(flags)),
             BX(std::make_shared<Register>(flags)),
             CX(std::make_shared<Register>(flags)),
             DX(std::make_shared<Register>(flags)),
             EX(std::make_shared<Register>(flags)),
-            alu(std::make_unique<Alu>(AX))
+            alu_(std::make_unique<Alu>(AX))
         {
-            // Create stack in own context
-            stack = std::make_unique<Stack2>(vmem_unit_, stack_capacity);
+            // Note: Stack and InstructionUnit are now created externally
+            // and passed in via set_stack() and set_instruction_unit()
+            // This is because they need to be created in the proper modes
+            // and CPU should depend on interfaces, not concrete types
+            // ALU is created internally as it needs the AX register
             
             // Create code context
-            code_context_id_ = vmem_unit_.create_context(code_capacity);
+            code_context_id_ = vmem_unit_->create_context(code_capacity);
             
             // Create data context (for general purpose memory)
-            data_context_id_ = vmem_unit_.create_context(65536); // 64KB data space
-            
-            // Create instruction unit with stack accessor
-            vmem_unit_.set_mode(VMemUnit::Mode::PROTECTED);
-            auto stack_accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
-            vmem_unit_.set_mode(VMemUnit::Mode::UNPROTECTED);
-            
-            instruction_unit = std::make_unique<InstructionUnit>(vmem_unit_, code_context_id_, std::move(stack_accessor), flags);
+            data_context_id_ = vmem_unit_->create_context(65536); // 64KB data space
         }
 
         Cpu::~Cpu() {}
+
+    void Cpu::set_stack(std::shared_ptr<IStack> stack) {
+        stack_ = stack;
+    }
+
+    void Cpu::set_instruction_unit(std::shared_ptr<IInstructionUnit> instruction_unit) {
+        instruction_unit_ = instruction_unit;
+    }
 
     std::shared_ptr<Register> Cpu::get_register_by_code(byte_t code) {
         switch (code) {
@@ -50,26 +66,29 @@ namespace lvm {
 
     void Cpu::initialize() {
         // Initialize CPU state if needed
+        if (!stack_ || !instruction_unit_) {
+            throw std::runtime_error("Stack or Instruction Unit not set before CPU initialization");
+        }
     }
 
     void Cpu::load_program(const std::vector<byte_t>& program) {
-        vmem_unit_.set_mode(VMemUnit::Mode::PROTECTED);
-        auto accessor = instruction_unit->get_accessor(MemAccessMode::READ_WRITE);
+        vmem_unit_->set_mode(IVMemUnit::Mode::PROTECTED);
+        auto accessor = instruction_unit_->get_accessor(MemAccessMode::READ_WRITE);
         accessor->Load_Program(program);
     }
 
     void Cpu::run() {
-        vmem_unit_.set_mode(VMemUnit::Mode::PROTECTED);
+        vmem_unit_->set_mode(IVMemUnit::Mode::PROTECTED);
         while (!halted) {
             // a timer will be here to control processor frame rate
             step();
         }
-        vmem_unit_.set_mode(VMemUnit::Mode::UNPROTECTED);
+        vmem_unit_->set_mode(IVMemUnit::Mode::UNPROTECTED);
     }
 
     void Cpu::step() {
         // for now just halt immediately
-        auto accessor = instruction_unit->get_accessor(MemAccessMode::READ_WRITE);
+        auto accessor = instruction_unit_->get_accessor(MemAccessMode::READ_WRITE);
         byte_t opcode = static_cast<byte_t>(accessor->readByte_At_IR());
         accessor->advance_IR(1);
         if (opcode == OPCODE_HALT) { // HALT instruction
@@ -176,7 +195,7 @@ namespace lvm {
     }
     
     void Cpu::execute_jump(byte_t opcode, addr_t address) {
-        auto accessor = instruction_unit->get_accessor(MemAccessMode::READ_WRITE);
+        auto accessor = instruction_unit_->get_accessor(MemAccessMode::READ_WRITE);
         switch(opcode) {
             case OPCODE_JMP_ADDR:
                 accessor->Jump_To_Address(address);
@@ -212,7 +231,7 @@ namespace lvm {
     }
 
     void Cpu::execute_subroutine_operation(byte_t opcode, const std::vector<byte_t>& params) {
-        auto accessor = instruction_unit->get_accessor(MemAccessMode::READ_WRITE);
+        auto accessor = instruction_unit_->get_accessor(MemAccessMode::READ_WRITE);
         switch(opcode) {
             case OPCODE_CALL_ADDR: {
                 addr_t address = combine_bytes_to_address(params[0], params[1]);
@@ -230,7 +249,7 @@ namespace lvm {
 
     // stack ops
     void Cpu::execute_memory_operation(byte_t opcode, const std::vector<byte_t>& params) {
-        auto stack_access = stack->get_accessor(MemAccessMode::READ_WRITE);
+        auto stack_access = stack_->get_accessor(MemAccessMode::READ_WRITE);
 
         switch(opcode) {
             // load ope
@@ -245,8 +264,8 @@ namespace lvm {
             case OPCODE_LDA_REG_ADDR_W: {
                 auto reg = get_register_by_code(params[0]);
                 addr32_t address = combine_bytes_to_address(params[1], params[2]);
-                const Context* data_ctx = vmem_unit_.get_context(data_context_id_);
-                auto data_accessor = data_ctx->create_paged_accessor(vmem_unit_, MemAccessMode::READ_WRITE);
+                auto data_ctx = vmem_unit_->get_context(data_context_id_);
+                auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
                 
                 // Calculate page and offset
                 page_t page = address / 256; // Assuming 256 bytes per page
@@ -269,8 +288,8 @@ namespace lvm {
                 addr32_t address = combine_bytes_to_address(params[0], params[1]);
                 auto reg = get_register_by_code(params[2]);
                 word_t value = reg->get_value();
-                const Context* data_ctx = vmem_unit_.get_context(data_context_id_);
-                auto data_accessor = data_ctx->create_paged_accessor(vmem_unit_, MemAccessMode::READ_WRITE);
+                auto data_ctx = vmem_unit_->get_context(data_context_id_);
+                auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
                 page_t page = address / 256;
                 addr_t offset = address % 256;
                 data_accessor->set_page(page);
@@ -293,8 +312,8 @@ namespace lvm {
             case OPCODE_LDAH_REG_ADDR_B: {
                 auto reg = get_register_by_code(params[0]);
                 addr32_t address = combine_bytes_to_address(params[1], params[2]);
-                const Context* data_ctx = vmem_unit_.get_context(data_context_id_);
-                auto data_accessor = data_ctx->create_paged_accessor(vmem_unit_, MemAccessMode::READ_ONLY);
+                auto data_ctx = vmem_unit_->get_context(data_context_id_);
+                auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
                 page_t page = address / 256;
                 addr_t offset = address % 256;
                 data_accessor->set_page(page);
@@ -307,8 +326,8 @@ namespace lvm {
                 addr32_t address = combine_bytes_to_address(params[0], params[1]);
                 auto reg = get_register_by_code(params[2]);
                 byte_t value = reg->get_high_byte();
-                const Context* data_ctx = vmem_unit_.get_context(data_context_id_);
-                auto data_accessor = data_ctx->create_paged_accessor(vmem_unit_, MemAccessMode::READ_WRITE);
+                auto data_ctx = vmem_unit_->get_context(data_context_id_);
+                auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
                 page_t page = address / 256;
                 addr_t offset = address % 256;
                 data_accessor->set_page(page);
@@ -331,8 +350,8 @@ namespace lvm {
             case OPCODE_LDAL_REG_ADDR_B: {
                 auto reg = get_register_by_code(params[0]);
                 addr32_t address = combine_bytes_to_address(params[1], params[2]);
-                const Context* data_ctx = vmem_unit_.get_context(data_context_id_);
-                auto data_accessor = data_ctx->create_paged_accessor(vmem_unit_, MemAccessMode::READ_ONLY);
+                auto data_ctx = vmem_unit_->get_context(data_context_id_);
+                auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
                 page_t page = address / 256;
                 addr_t offset = address % 256;
                 data_accessor->set_page(page);
@@ -344,8 +363,8 @@ namespace lvm {
                 addr32_t address = combine_bytes_to_address(params[0], params[1]);
                 auto reg = get_register_by_code(params[2]);
                 byte_t value = reg->get_low_byte();
-                const Context* data_ctx = vmem_unit_.get_context(data_context_id_);
-                auto data_accessor = data_ctx->create_paged_accessor(vmem_unit_, MemAccessMode::READ_WRITE);
+                auto data_ctx = vmem_unit_->get_context(data_context_id_);
+                auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
                 page_t page = address / 256;
                 addr_t offset = address % 256;
                 data_accessor->set_page(page);
@@ -358,8 +377,8 @@ namespace lvm {
                 auto dest_reg = get_register_by_code(params[0]);
                 auto addr_reg = get_register_by_code(params[1]);
                 addr32_t address = addr_reg->get_value();
-                const Context* data_ctx = vmem_unit_.get_context(data_context_id_);
-                auto data_accessor = data_ctx->create_paged_accessor(vmem_unit_, MemAccessMode::READ_ONLY);
+                auto data_ctx = vmem_unit_->get_context(data_context_id_);
+                auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
                 page_t page = address / 256;
                 addr_t offset = address % 256;
                 data_accessor->set_page(page);
@@ -371,8 +390,8 @@ namespace lvm {
                 auto dest_reg = get_register_by_code(params[0]);
                 auto addr_reg = get_register_by_code(params[1]);
                 addr32_t address = addr_reg->get_value();
-                const Context* data_ctx = vmem_unit_.get_context(data_context_id_);
-                auto data_accessor = data_ctx->create_paged_accessor(vmem_unit_, MemAccessMode::READ_ONLY);
+                auto data_ctx = vmem_unit_->get_context(data_context_id_);
+                auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
                 page_t page = address / 256;
                 addr_t offset = address % 256;
                 data_accessor->set_page(page);
@@ -384,8 +403,8 @@ namespace lvm {
                 auto dest_reg = get_register_by_code(params[0]);
                 auto addr_reg = get_register_by_code(params[1]);
                 addr32_t address = addr_reg->get_value();
-                const Context* data_ctx = vmem_unit_.get_context(data_context_id_);
-                auto data_accessor = data_ctx->create_paged_accessor(vmem_unit_, MemAccessMode::READ_ONLY);
+                auto data_ctx = vmem_unit_->get_context(data_context_id_);
+                auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
                 page_t page = address / 256;
                 addr_t offset = address % 256;
                 data_accessor->set_page(page);
@@ -404,6 +423,16 @@ namespace lvm {
             }
             // stack operations
 
+            case OPCODE_PUSHW_IMM_W: {
+                word_t value = combine_bytes_to_address(params[0], params[1]);
+                stack_access->push_word(value);
+                break;
+            }
+            case OPCODE_PUSHB_IMM_B: {
+                byte_t value = params[0];
+                stack_access->push_byte(value);
+                break;
+            }
             case OPCODE_PUSH_REG_W: {
                 auto reg = get_register_by_code(params[0]);
                 stack_access->push_word(reg->get_value());
@@ -510,7 +539,18 @@ namespace lvm {
         }
     }
 
-
-    // Additional CPU methods would go here
+    void Cpu::execute_system_operation(byte_t opcode, const std::vector<byte_t>& params) {
+        auto accessor = instruction_unit_->get_accessor(MemAccessMode::READ_WRITE);
+        switch(opcode) {
+            case OPCODE_SYS_FUNC:
+                {
+                    word_t syscall_number = combine_bytes_to_word(params[0], params[1]);
+                    accessor->system_call(syscall_number);  
+                    break;
+                }
+            default:
+                throw runtime_error("Invalid system operation opcode");
+        }   
+    }
 
 } // namespace lvm

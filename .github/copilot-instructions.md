@@ -9,6 +9,7 @@
 
 - if in working through steps you find yourself making changes DONT, stop and show me a plan
 
+- DO NOT BREAK ARCHITECTURE even IF it seems simpler, PLAN and request approval
 # information
 - additional context can be found in specification files for the module in question
 
@@ -21,6 +22,6 @@
 - each unit should always be its own project in the tree, 
 
 - documentation is in specification folder
-- the reference guides are in the reference sub folder
+- the reference guides are in the Reference sub folder
 - these should be updated to reflect changes where appropriate
 

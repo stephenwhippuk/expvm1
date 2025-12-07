@@ -32,6 +32,10 @@
 #define OPCODE_LDAH_REG_REGADDR_B  0x73  // LDAH (2) - Load byte from address in register to register high
 #define OPCODE_LDAL_REG_REGADDR_B  0x74  // LDAL (2) - Load byte from address in register to register low
 
+// Stack operations - immediate push
+#define OPCODE_PUSHW_IMM_W      0x75  // Push immediate word to stack
+#define OPCODE_PUSHB_IMM_B      0x76  // Push immediate byte to stack
+
 // Stack operations
 #define OPCODE_PUSH_REG_W       0x10  // Push word register to stack
 #define OPCODE_PUSHH_REG_B      0x11  // Push high byte to stack
@@ -191,6 +195,8 @@ namespace lvm {
      if (opcode == OPCODE_STAH_ADDR_REG_B) return 3;
      if (opcode == OPCODE_STAL_ADDR_REG_B) return 3;
      // Stack operations
+     if (opcode == OPCODE_PUSHW_IMM_W) return 2;
+     if (opcode == OPCODE_PUSHB_IMM_B) return 1;
      if (opcode == OPCODE_PUSH_REG_W) return 1;
      if (opcode == OPCODE_PUSHH_REG_B) return 1;
      if (opcode == OPCODE_PUSHL_REG_B) return 1;

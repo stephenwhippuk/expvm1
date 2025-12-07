@@ -5,8 +5,8 @@
 #include "errors.h"
 #include <stdexcept>
 
-Context::Context(context_id_t id, vaddr_t base_address, uint32_t size)
-    : id_(id), base_address_(base_address), size_(size), current_page_(0) {
+lvm::Context::Context(IVMemUnit& vmem_unit, context_id_t id, vaddr_t base_address, uint32_t size)
+    : vmem_unit_(vmem_unit), id_(id), base_address_(base_address), size_(size), current_page_(0) {
     
     // Validate that base address is within 40-bit range
     if (!is_valid_vaddr(base_address)) {
@@ -20,31 +20,29 @@ Context::Context(context_id_t id, vaddr_t base_address, uint32_t size)
     }
 }
 
-bool Context::contains(vaddr_t addr) const {
+bool lvm::Context::contains(vaddr_t addr) const {
     return addr >= base_address_ && addr < get_end_address();
 }
 
-std::unique_ptr<lvm::PagedMemoryAccessor> Context::create_paged_accessor(
-    lvm::VMemUnit& vmem_unit, lvm::MemAccessMode mode) const {
+std::unique_ptr<lvm::PagedMemoryAccessor> lvm::Context::create_paged_accessor(MemAccessMode mode) const {
     
     // Accessor creation only allowed in protected mode
-    if (!vmem_unit.is_protected()) {
+    if (!vmem_unit_.is_protected()) {
         throw std::runtime_error("Cannot create accessor in UNPROTECTED mode");
     }
     
     // Need to cast away const since accessor needs mutable access to page state
-    return std::unique_ptr<lvm::PagedMemoryAccessor>(
-        new lvm::PagedMemoryAccessor(vmem_unit, const_cast<Context&>(*this), id_, size_, mode));
+    return std::unique_ptr<PagedMemoryAccessor>(
+        new PagedMemoryAccessor(const_cast<Context&>(*this), mode));
 }
 
-std::unique_ptr<lvm::StackAccessor> Context::create_stack_accessor(
-    lvm::VMemUnit& vmem_unit) const {
+std::unique_ptr<lvm::StackMemoryAccessor> lvm::Context::create_stack_accessor() const {
     
     // Accessor creation only allowed in protected mode
-    if (!vmem_unit.is_protected()) {
+    if (!vmem_unit_.is_protected()) {
         throw std::runtime_error("Cannot create stack accessor in UNPROTECTED mode");
     }
     
-    return std::unique_ptr<lvm::StackAccessor>(
-        new lvm::StackAccessor(vmem_unit, id_, size_));
+    return std::unique_ptr<StackMemoryAccessor>(
+        new StackMemoryAccessor(*this));
 }

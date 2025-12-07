@@ -2,9 +2,6 @@
 # Core memory management with paging and access control
 
 add_library(lvm_memunit STATIC
-    memunit.cpp
-    mem_access.cpp
-    memory2.cpp
     context.cpp
     vmemunit.cpp
     paged_memory_accessor.cpp
@@ -21,7 +18,6 @@ target_include_directories(lvm_memunit PUBLIC
 # Tests
 if(BUILD_TESTING)
     add_executable(lvm_memunit_tests
-        tests/memory2_tests.cpp
         tests/memunit_tests.cpp
         tests/paged_memory_accessor_tests.cpp
         tests/stack_accessor_tests.cpp

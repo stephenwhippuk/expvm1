@@ -6,12 +6,10 @@
 
 using namespace lvm;
 
-PagedMemoryAccessor::PagedMemoryAccessor(VMemUnit& vmem_unit, ::Context& context,
-                                     context_id_t context_id, uint32_t context_size, MemAccessMode mode)
-    : vmem_unit_(vmem_unit),
-      context_(context),
-      context_id_(context_id),
-      context_size_(context_size),
+PagedMemoryAccessor::PagedMemoryAccessor(Context& context, MemAccessMode mode)
+    : context_(context),
+      context_id_(context.get_id()),
+      context_size_(context.get_size()),
       mode_(mode) {
 }
 
@@ -37,16 +35,17 @@ uint32_t PagedMemoryAccessor::page_offset_to_address(page_t page, addr_t offset)
 }
 
 byte_t PagedMemoryAccessor::read_byte(addr_t offset) const {
-    if (!vmem_unit_.is_protected()) {
+    if (!context_.vmem_unit_.is_protected()) {
         throw lvm::runtime_error("Cannot read from PagedMemoryAccessor while VMemUnit is in unprotected mode");
     }
     
     uint32_t address = page_offset_to_address(context_.get_current_page(), offset);
-    return vmem_unit_.read_byte(context_id_, address);
+    VMemUnit& vmem = static_cast<VMemUnit&>(context_.vmem_unit_);
+    return vmem.read_byte(context_id_, address);
 }
 
 void PagedMemoryAccessor::write_byte(addr_t offset, byte_t value) {
-    if (!vmem_unit_.is_protected()) {
+    if (!context_.vmem_unit_.is_protected()) {
         throw lvm::runtime_error("Cannot write to PagedMemoryAccessor while VMemUnit is in unprotected mode");
     }
     
@@ -55,11 +54,12 @@ void PagedMemoryAccessor::write_byte(addr_t offset, byte_t value) {
     }
     
     uint32_t address = page_offset_to_address(context_.get_current_page(), offset);
-    vmem_unit_.write_byte(context_id_, address, value);
+    VMemUnit& vmem = static_cast<VMemUnit&>(context_.vmem_unit_);
+    vmem.write_byte(context_id_, address, value);
 }
 
 word_t PagedMemoryAccessor::read_word(addr_t offset) const {
-    if (!vmem_unit_.is_protected()) {
+    if (!context_.vmem_unit_.is_protected()) {
         throw lvm::runtime_error("Cannot read from PagedMemoryAccessor while VMemUnit is in unprotected mode");
     }
     
@@ -70,7 +70,7 @@ word_t PagedMemoryAccessor::read_word(addr_t offset) const {
 }
 
 void PagedMemoryAccessor::write_word(addr_t offset, word_t value) {
-    if (!vmem_unit_.is_protected()) {
+    if (!context_.vmem_unit_.is_protected()) {
         throw lvm::runtime_error("Cannot write to PagedMemoryAccessor while VMemUnit is in unprotected mode");
     }
     
@@ -86,7 +86,7 @@ void PagedMemoryAccessor::write_word(addr_t offset, word_t value) {
 }
 
 void PagedMemoryAccessor::bulk_read(addr_t offset, std::vector<byte_t>& buffer, memsize_t size) const {
-    if (!vmem_unit_.is_protected()) {
+    if (!context_.vmem_unit_.is_protected()) {
         throw lvm::runtime_error("Cannot read from PagedMemoryAccessor while VMemUnit is in unprotected mode");
     }
     
@@ -97,7 +97,7 @@ void PagedMemoryAccessor::bulk_read(addr_t offset, std::vector<byte_t>& buffer, 
 }
 
 void PagedMemoryAccessor::bulk_write(addr_t offset, const std::vector<byte_t>& data) {
-    if (!vmem_unit_.is_protected()) {
+    if (!context_.vmem_unit_.is_protected()) {
         throw lvm::runtime_error("Cannot write to PagedMemoryAccessor while VMemUnit is in unprotected mode");
     }
     

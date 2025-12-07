@@ -6,11 +6,9 @@
 // Memory Unit
 #include "../src/memunit/include/memsize.h"
 #include "../src/memunit/include/accessMode.h"
-#include "../src/memunit/include/mem_access.h"
-#include "../src/memunit/include/memunit.h"
-#include "../src/memunit/include/memory2.h"
 #include "../src/memunit/include/vaddr.h"
 #include "../src/memunit/include/context.h"
+#include "../src/memunit/include/ivmemunit.h"
 #include "../src/memunit/include/vmemunit.h"
 #include "../src/memunit/include/paged_memory_accessor.h"
 #include "../src/memunit/include/stack_accessor.h"
@@ -27,6 +25,7 @@
 #include "../src/alu/include/alu.h"
 
 // Stack
+#include "../src/stack/include/istack.h"
 #include "../src/stack/include/stack.h"
 
 // Instruction Unit

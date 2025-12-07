@@ -548,6 +548,6 @@ Register EX(cpu_flags);  // Extended
 
 // Special registers (managed by other units)
 // IR - Instruction Register (program counter) - in InstructionUnit
-// SP - Stack Pointer - in Stack2
-// FP - Frame Pointer - in Stack2
+// SP - Stack Pointer - in Stack
+// FP - Frame Pointer - in Stack
 ```

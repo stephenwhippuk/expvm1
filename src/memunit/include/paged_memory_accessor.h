@@ -8,10 +8,9 @@
 #include <vector>
 #include <cstdint>
 
-class Context;  // Forward declaration (global namespace)
-
 namespace lvm {
-    class VMemUnit;  // Forward declaration
+    class Context;  // Forward declaration
+    class IVMemUnit;  // Forward declaration
 
     // PagedMemoryAccessor: Provides page+address access to a context's virtual memory
     // - Translates 16-bit page + 16-bit address into 32-bit virtual address
@@ -43,14 +42,13 @@ namespace lvm {
 
     private:
         friend class VMemUnit;  // VMemUnit can access internals
-        friend class ::Context;   // Context can construct accessors
-        PagedMemoryAccessor(VMemUnit& vmem_unit, ::Context& context, context_id_t context_id, uint32_t context_size, MemAccessMode mode);
+        friend class Context;   // Context can construct accessors
+        PagedMemoryAccessor(Context& context, MemAccessMode mode);
 
         // Convert page + offset to 32-bit virtual address within context
         uint32_t page_offset_to_address(page_t page, addr_t offset) const;
 
-        VMemUnit& vmem_unit_;
-        ::Context& context_;        // Reference to context for page state
+        Context& context_;        // Reference to context (Context outlives accessor)
         context_id_t context_id_;
         uint32_t context_size_;     // Total size of context (max 4GB)
         MemAccessMode mode_;

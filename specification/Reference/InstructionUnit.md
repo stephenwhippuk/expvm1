@@ -4,6 +4,26 @@
 
 The InstructionUnit manages program execution flow, including instruction pointer (IR) management, program loading, jump operations, and subroutine call/return mechanisms. It bridges the CPU execution logic with code memory and the stack.
 
+## Interface Design
+
+### IInstructionUnit Interface
+
+InstructionUnit implements the `IInstructionUnit` pure virtual interface:
+
+```cpp
+class IInstructionUnit {
+public:
+    virtual std::unique_ptr<InstructionUnit_Accessor> get_accessor(MemAccessMode mode) = 0;
+    virtual ~IInstructionUnit() = default;
+};
+```
+
+**Key Points:**
+- All operations go through ephemeral `InstructionUnit_Accessor` objects
+- CPU depends on IInstructionUnit interface, not concrete InstructionUnit
+- InstructionUnit itself depends on IStack interface, not concrete Stack
+- Enables testing with mock implementations
+
 ## Architecture Overview
 
 ### Core Responsibilities
@@ -42,7 +62,7 @@ The InstructionUnit manages program execution flow, including instruction pointe
 │                                         │
 │  ┌─────────────────────────────────┐   │
 │  │  Stack Accessor                 │   │  ← Subroutine frames
-│  │  (StackAccessor2)                │   │
+│  │  (StackAccessor)                │   │
 │  └─────────────────────────────────┘   │
 └─────────────────────────────────────────┘
 ```
@@ -61,15 +81,18 @@ struct ReturnStackItem {
 ### InstructionUnit Class
 
 ```cpp
-class InstructionUnit {
+class InstructionUnit : public IInstructionUnit {
+public:
     // Construction (UNPROTECTED mode only)
-    InstructionUnit(VMemUnit& vmem_unit, 
+    // Note: Takes IVMemUnit&, IStack&, Flags, and BasicIO dependencies
+    InstructionUnit(std::shared_ptr<IVMemUnit> vmem_unit, 
                    context_id_t code_context_id,
-                   std::unique_ptr<StackAccessor2> stack_ptr,
-                   std::shared_ptr<Flags> flags_ptr);
+                   IStack& stack,
+                   std::shared_ptr<Flags> flags_ptr,
+                   std::shared_ptr<BasicIO> basic_io);
     
-    // Accessor creation (PROTECTED mode only)
-    std::unique_ptr<InstructionUnit_Accessor> get_accessor(MemAccessMode mode);
+    // IInstructionUnit interface implementation
+    std::unique_ptr<InstructionUnit_Accessor> get_accessor(MemAccessMode mode) override;
 };
 ```
 
@@ -94,6 +117,9 @@ class InstructionUnit_Accessor {
     // Subroutine support
     void call_subroutine(addr_t address, bool with_return_value = false);
     void return_from_subroutine();
+    
+    // System call support
+    void system_call(word_t syscall_number);
 };
 ```
 
@@ -104,13 +130,15 @@ class InstructionUnit_Accessor {
 ```cpp
 #include "instruction_unit.h"
 #include "vmemunit.h"
-#include "stack_new.h"
+#include "stack.h"
+
+using namespace lvm;
 
 // Setup VM
 VMemUnit vmem_unit;
 
 // Create stack
-Stack2 stack(vmem_unit, 4096);
+Stack stack(vmem_unit, 4096);
 
 // Create code context
 context_id_t code_ctx = vmem_unit.create_context(8192);
@@ -119,15 +147,15 @@ context_id_t code_ctx = vmem_unit.create_context(8192);
 auto flags = std::make_shared<Flags>();
 
 // Get stack accessor
-vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+vmem_unit.set_mode(IVMemUnit::Mode::PROTECTED);
 auto stack_accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
 
 // Create instruction unit (must be in UNPROTECTED mode)
-vmem_unit.set_mode(VMemUnit::Mode::UNPROTECTED);
+vmem_unit.set_mode(IVMemUnit::Mode::UNPROTECTED);
 InstructionUnit instr_unit(vmem_unit, code_ctx, std::move(stack_accessor), flags);
 
 // Switch back to PROTECTED mode for operations
-vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+vmem_unit.set_mode(IVMemUnit::Mode::PROTECTED);
 
 // Get accessor
 auto accessor = instr_unit.get_accessor(MemAccessMode::READ_WRITE);
@@ -266,7 +294,38 @@ accessor->return_from_subroutine();
 // - Flag byte removed from stack
 ```
 
-### Example 6: Subroutine Call With Return Value
+### Example 6: System Call Execution
+
+```cpp
+#include "instruction_unit.h"
+#include "basic_io.h"
+#include "systemcalls.h"
+
+using namespace lvm;
+
+// Setup (assumes vmem_unit, stack, flags already created)
+auto basic_io = std::make_shared<BasicIO>(vmem_unit, stack);
+
+InstructionUnit instr_unit(vmem_unit, code_ctx, *stack, flags, basic_io);
+auto accessor = instr_unit.get_accessor(MemAccessMode::READ_WRITE);
+
+// Example: Print string system call
+// Stack should have: [count] [char_n] ... [char_1]
+// Push "Hello" onto stack (reverse order)
+auto stack_accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
+stack_accessor->push_byte('o');
+stack_accessor->push_byte('l');
+stack_accessor->push_byte('l');
+stack_accessor->push_byte('e');
+stack_accessor->push_byte('H');
+stack_accessor->push_word(5);  // Count
+
+// Execute system call
+accessor->system_call(SYSCALL_PRINT_STRING_FROM_STACK);
+// Output: "Hello" to console
+```
+
+### Example 7: Subroutine Call With Return Value
 
 ```cpp
 auto accessor = instr_unit.get_accessor(MemAccessMode::READ_WRITE);
@@ -428,8 +487,8 @@ stack_accessor->pop_byte();  // Remove flag
 
 ```cpp
 void InstructionUnit::load_program(const std::vector<byte_t>& program) {
-    const Context* code_ctx = vmem_unit_.get_context(code_context_id_);
-    auto code_accessor = code_ctx->create_paged_accessor(vmem_unit_, MemAccessMode::READ_WRITE);
+    auto code_ctx = vmem_unit_->get_context(code_context_id_);
+    auto code_accessor = code_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
     
     addr32_t addr = 0;
     for (byte_t byte : program) {
@@ -442,14 +501,54 @@ void InstructionUnit::load_program(const std::vector<byte_t>& program) {
 }
 ```
 
+## System Call Support
+
+The InstructionUnit handles system calls (opcode 0x7F) by delegating to the BasicIO subsystem. System calls provide access to I/O and operating system services.
+
+### System Call Mechanism
+
+```cpp
+void InstructionUnit_Accessor::system_call(word_t syscall_number) {
+    // Delegates to BasicIO through accessor
+    auto io_accessor = basic_io_->get_accessor();
+    
+    switch (syscall_number) {
+        case SYSCALL_PRINT_STRING_FROM_STACK:   // 0x0010
+        case SYSCALL_PRINT_LINE_FROM_STACK:     // 0x0011
+        case SYSCALL_READ_LINE_ONTO_STACK:      // 0x0012
+            // Handled by BasicIO
+            break;
+        default:
+            throw runtime_error("Invalid system call number");
+    }
+}
+```
+
+### Dependencies
+
+- **BasicIO**: Required dependency injected during InstructionUnit construction
+- **Stack**: Used by BasicIO to read/write I/O data
+- **System Call Table**: Defined in `systemcalls.h`
+
+### Supported System Calls
+
+| Index | Hex    | Name                       | Description |
+|-------|--------|----------------------------|-------------|
+| 16    | 0x0010 | PRINT_STRING_FROM_STACK    | Output string to console |
+| 17    | 0x0011 | PRINT_LINE_FROM_STACK      | Output string with newline |
+| 18    | 0x0012 | READ_LINE_ONTO_STACK       | Read line from console input |
+
+See `specification/SystemCalls.md` for detailed documentation of each system call.
+
 ## Error Handling
 
 Common exceptions:
-- `runtime_error("InstructionUnit requires a valid StackAccessor2")` - Null stack pointer
+- `runtime_error("InstructionUnit requires a valid StackAccessor")` - Null stack pointer
 - `runtime_error("InstructionUnit must be created in unprotected mode")` - Wrong mode
 - `runtime_error("Return stack underflow on return from subroutine")` - Return without call
 - `runtime_error("Page out of bounds")` - Invalid program counter address
 - `runtime_error("Program too large for code context")` - Program exceeds capacity
+- `runtime_error("Invalid system call number: <number>")` - Unsupported system call
 
 ## Performance Considerations
 
@@ -469,6 +568,6 @@ The InstructionUnit enforces mode discipline:
 ## Return Stack vs Call Stack
 
 - **Return Stack**: Internal to InstructionUnit, stores return addresses and frame pointers
-- **Call Stack**: Stack2 managed by StackAccessor2, stores local variables and parameters
+- **Call Stack**: Stack managed by StackAccessor, stores local variables and parameters
 - Both work together to support nested subroutines
 - Return stack ensures proper unwinding even with multiple nested calls

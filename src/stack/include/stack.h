@@ -12,15 +12,16 @@
 #include "vaddr.h"
 #include "vmemunit.h"
 #include "stack_accessor.h"
+#include "istack.h"
 #include <memory>
 
 namespace lvm {
 
-    class Stack2; // Forward declaration
+    class Stack; // Forward declaration
 
-    class StackAccessor2 {
+    class StackAccessor {
     public:
-        ~StackAccessor2() = default;
+        ~StackAccessor() = default;
         
         // READ Access Methods
         byte_t peek_byte() const;           // Peek at top of stack
@@ -52,36 +53,38 @@ namespace lvm {
         void flush();                       // Reset stack to empty state
 
     private:
-        friend class Stack2;
-        StackAccessor2(Stack2* stack, MemAccessMode access_mode);
-        Stack2* stack_ref;
+        friend class Stack;
+        StackAccessor(Stack* stack, MemAccessMode access_mode);
+        Stack* stack_ref;
         MemAccessMode mode;
     };
 
-    class Stack2 {
+    class Stack : public IStack {
     public:
         // Creates a stack with its own context in the virtual memory unit
         // - Only allowed in UNPROTECTED mode
         // - Allocates a dedicated context with specified capacity
-        Stack2(VMemUnit& vmem_unit, addr32_t capacity);
-        ~Stack2() = default;
+        Stack(std::shared_ptr<IVMemUnit> vmem_unit, addr32_t capacity);
+        ~Stack() = default;
         
         // Delete copy operations
-        Stack2(const Stack2&) = delete;
-        Stack2& operator=(const Stack2&) = delete;
+        Stack(const Stack&) = delete;
+        Stack& operator=(const Stack&) = delete;
         
         // Allow move operations
-        Stack2(Stack2&&) = default;
-        Stack2& operator=(Stack2&&) = default;
+        Stack(Stack&&) = default;
+        Stack& operator=(Stack&&) = default;
         
-        // Get an accessor to perform stack operations
-        // - Only allowed in PROTECTED mode
-        std::unique_ptr<StackAccessor2> get_accessor(MemAccessMode mode);
+        // IStack interface implementation
+        std::unique_ptr<StackAccessor> get_accessor(MemAccessMode mode) override;
+        addr32_t get_sp() const override { return sp_; }
+        int32_t get_fp() const override { return fp_; }
+        addr32_t get_capacity() const override { return capacity_; }
 
     private:
-        friend class StackAccessor2;
-        
-        VMemUnit& vmem_unit_;
+        friend class StackAccessor;
+
+        std::shared_ptr<IVMemUnit> vmem_unit_;
         context_id_t context_id_;
         addr32_t capacity_;     // Maximum capacity in bytes
         addr32_t sp_;           // Stack pointer (points to next free position)
@@ -103,9 +106,6 @@ namespace lvm {
         bool is_empty() const;
         bool is_full() const;
         addr32_t get_size() const { return sp_; }
-        addr32_t get_capacity() const { return capacity_; }
-        addr32_t get_sp() const { return sp_; }
-        int32_t get_fp() const { return fp_; }
         
         void set_frame_pointer(int32_t value);
         void set_frame_to_top();

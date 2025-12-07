@@ -7,8 +7,8 @@
 
 using namespace lvm;
 
-// Test fixture for StackAccessor tests
-class StackAccessorTest : public ::testing::Test {
+// Test fixture for StackMemoryAccessor tests
+class StackMemoryAccessorTest : public ::testing::Test {
 protected:
     VMemUnit vmem_unit;
     context_id_t context_id;
@@ -20,31 +20,31 @@ protected:
 };
 
 // Test stack accessor creation
-TEST_F(StackAccessorTest, AccessorCreation) {
+TEST_F(StackMemoryAccessorTest, AccessorCreation) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
+    auto ctx = vmem_unit.get_context(context_id);
     ASSERT_NE(ctx, nullptr);
     
-    auto accessor = ctx->create_stack_accessor(vmem_unit);
+    auto accessor = ctx->create_stack_accessor();
     ASSERT_NE(accessor, nullptr);
     EXPECT_EQ(accessor->get_context_id(), context_id);
     EXPECT_EQ(accessor->get_size(), 64 * 1024);
 }
 
-// Test accessor creation fails in unprotected mode
-TEST_F(StackAccessorTest, AccessorCreationUnprotectedFails) {
+// Test that accessor creation fails in unprotected mode
+TEST_F(StackMemoryAccessorTest, AccessorCreationUnprotectedFails) {
     // Leave in unprotected mode
-    const Context* ctx = vmem_unit.get_context(context_id);
+    auto ctx = vmem_unit.get_context(context_id);
     ASSERT_NE(ctx, nullptr);
     
-    EXPECT_THROW(ctx->create_stack_accessor(vmem_unit), std::runtime_error);
+    EXPECT_THROW(ctx->create_stack_accessor(), std::runtime_error);
 }
 
 // Test byte read/write
-TEST_F(StackAccessorTest, ByteReadWrite) {
+TEST_F(StackMemoryAccessorTest, ByteReadWrite) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_stack_accessor(vmem_unit);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_stack_accessor();
     
     // Write at address 0x100
     accessor->write_byte(0x100, 0x42);
@@ -55,10 +55,10 @@ TEST_F(StackAccessorTest, ByteReadWrite) {
 }
 
 // Test byte operations at different addresses
-TEST_F(StackAccessorTest, ByteOperationsMultipleAddresses) {
+TEST_F(StackMemoryAccessorTest, ByteOperationsMultipleAddresses) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_stack_accessor(vmem_unit);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_stack_accessor();
     
     // Write to different addresses
     accessor->write_byte(0x0000, 0xAA);
@@ -72,10 +72,10 @@ TEST_F(StackAccessorTest, ByteOperationsMultipleAddresses) {
 }
 
 // Test word read/write (little-endian)
-TEST_F(StackAccessorTest, WordReadWrite) {
+TEST_F(StackMemoryAccessorTest, WordReadWrite) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_stack_accessor(vmem_unit);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_stack_accessor();
     
     accessor->write_word(0x400, 0x1234);
     
@@ -88,10 +88,10 @@ TEST_F(StackAccessorTest, WordReadWrite) {
 }
 
 // Test multiple word operations
-TEST_F(StackAccessorTest, MultipleWordOperations) {
+TEST_F(StackMemoryAccessorTest, MultipleWordOperations) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_stack_accessor(vmem_unit);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_stack_accessor();
     
     accessor->write_word(0x100, 0xABCD);
     accessor->write_word(0x200, 0x1234);
@@ -103,10 +103,10 @@ TEST_F(StackAccessorTest, MultipleWordOperations) {
 }
 
 // Test address bounds checking - byte
-TEST_F(StackAccessorTest, ByteBoundsChecking) {
+TEST_F(StackMemoryAccessorTest, ByteBoundsChecking) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_stack_accessor(vmem_unit);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_stack_accessor();
     
     // Last valid address
     uint32_t size = accessor->get_size();
@@ -119,10 +119,10 @@ TEST_F(StackAccessorTest, ByteBoundsChecking) {
 }
 
 // Test address bounds checking - word
-TEST_F(StackAccessorTest, WordBoundsChecking) {
+TEST_F(StackMemoryAccessorTest, WordBoundsChecking) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_stack_accessor(vmem_unit);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_stack_accessor();
     
     uint32_t size = accessor->get_size();
     
@@ -136,10 +136,10 @@ TEST_F(StackAccessorTest, WordBoundsChecking) {
 }
 
 // Test pre-allocation ensures all memory available
-TEST_F(StackAccessorTest, PreAllocationComplete) {
+TEST_F(StackMemoryAccessorTest, PreAllocationComplete) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_stack_accessor(vmem_unit);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_stack_accessor();
     
     // Should be able to write to any address without allocation delay
     // Test addresses across different blocks
@@ -155,10 +155,10 @@ TEST_F(StackAccessorTest, PreAllocationComplete) {
 }
 
 // Test default read returns zero (from pre-allocated memory)
-TEST_F(StackAccessorTest, DefaultValueZero) {
+TEST_F(StackMemoryAccessorTest, DefaultValueZero) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_stack_accessor(vmem_unit);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_stack_accessor();
     
     // Unwritten memory should be zero-initialized
     EXPECT_EQ(accessor->read_byte(0x1000), 0);
@@ -166,10 +166,10 @@ TEST_F(StackAccessorTest, DefaultValueZero) {
 }
 
 // Test operations in protected mode work
-TEST_F(StackAccessorTest, ProtectedModeOperations) {
+TEST_F(StackMemoryAccessorTest, ProtectedModeOperations) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_stack_accessor(vmem_unit);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_stack_accessor();
     
     // Operations should work in protected mode
     accessor->write_byte(0x100, 0x42);
@@ -180,10 +180,10 @@ TEST_F(StackAccessorTest, ProtectedModeOperations) {
 }
 
 // Test 32-bit addressing (direct, no page translation)
-TEST_F(StackAccessorTest, DirectAddressing) {
+TEST_F(StackMemoryAccessorTest, DirectAddressing) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_stack_accessor(vmem_unit);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_stack_accessor();
     
     // Use full 32-bit addresses within bounds
     accessor->write_byte(0x00000100, 0xAA);
@@ -196,12 +196,12 @@ TEST_F(StackAccessorTest, DirectAddressing) {
 }
 
 // Test small stack context
-TEST_F(StackAccessorTest, SmallStackContext) {
+TEST_F(StackMemoryAccessorTest, SmallStackContext) {
     // Create a small 1KB stack
     context_id_t small_ctx = vmem_unit.create_context(1024);
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(small_ctx);
-    auto accessor = ctx->create_stack_accessor(vmem_unit);
+    auto ctx = vmem_unit.get_context(small_ctx);
+    auto accessor = ctx->create_stack_accessor();
     
     EXPECT_EQ(accessor->get_size(), 1024);
     

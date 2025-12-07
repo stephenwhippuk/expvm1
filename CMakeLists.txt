@@ -40,6 +40,7 @@ add_subdirectory(src/register)
 add_subdirectory(src/alu)
 add_subdirectory(src/stack)
 add_subdirectory(src/instruction_unit)
+add_subdirectory(src/basic_io)
 add_subdirectory(src/cpu)
 add_subdirectory(src/vm)
 

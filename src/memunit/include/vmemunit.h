@@ -5,6 +5,7 @@
 #include "vaddr.h"
 #include "accessMode.h"
 #include "memsize.h"
+#include "ivmemunit.h"
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -20,13 +21,8 @@ namespace lvm {
 // - Manages allocation/deallocation of physical memory to virtual regions
 // - Operates in two modes: PROTECTED and UNPROTECTED
 // - Contexts can only be created in UNPROTECTED mode
-class VMemUnit {
+class VMemUnit : public IVMemUnit {
 public:
-    enum class Mode {
-        PROTECTED,
-        UNPROTECTED
-    };
-    
     VMemUnit();
     ~VMemUnit() = default;
     
@@ -38,51 +34,37 @@ public:
     VMemUnit(VMemUnit&&) = default;
     VMemUnit& operator=(VMemUnit&&) = default;
     
-    // Mode management
-    void set_mode(Mode mode);
-    Mode get_mode() const { return mode_; }
-    bool is_protected() const { return mode_ == Mode::PROTECTED; }
-    bool is_unprotected() const { return mode_ == Mode::UNPROTECTED; }
+    // IVMemUnit interface implementation
+    void set_mode(IVMemUnit::Mode mode) override;
+    bool is_protected() const override { return mode_ == IVMemUnit::Mode::PROTECTED; }
+    context_id_t create_context(uint32_t size) override;
+    void destroy_context(context_id_t id) override;
+    std::shared_ptr<Context> get_context(context_id_t id) const override;
+    std::shared_ptr<Context> find_context_for_address(vaddr_t addr) const override;
     
-    // Context management
-    // create_context: Creates a new context with the specified size
-    // - Only allowed in UNPROTECTED mode
-    // - Returns the ID of the newly created context
-    // - Throws if in PROTECTED mode or if virtual space is exhausted
-    context_id_t create_context(uint32_t size);
-    
-    // destroy_context: Removes a context and frees its resources
-    // - Only allowed in UNPROTECTED mode
-    // - Throws if in PROTECTED mode or if context_id is invalid
-    void destroy_context(context_id_t id);
-    
-    // get_context: Retrieves a context by ID
-    // - Returns nullptr if context doesn't exist
-    const Context* get_context(context_id_t id) const;
-    
-    // find_context_for_address: Finds which context contains a virtual address
-    // - Returns nullptr if no context contains the address
-    const Context* find_context_for_address(vaddr_t addr) const;
+    // Additional methods not in interface
+    IVMemUnit::Mode get_mode() const { return mode_; }
+    bool is_unprotected() const { return mode_ == IVMemUnit::Mode::UNPROTECTED; }
     
     // Memory operations (used by FreeStoreAccessor and StackAccessor)
     // These are public so Context can create accessors in PROTECTED mode
     byte_t read_byte(context_id_t context_id, uint32_t address) const;
-    void write_byte(context_id_t context_id, uint32_t address, byte_t value);
+    void write_byte(context_id_t context_id, addr32_t address, byte_t value);
     
-    // Physical memory management - public for StackAccessor pre-allocation
-    void ensure_physical_memory(context_id_t context_id, uint32_t address);
+    // Physical memory management - public for StackMemoryAccessor pre-allocation
+    void ensure_physical_memory(context_id_t context_id, addr32_t address);
     
     // Block size for memory allocation
     static constexpr size_t BLOCK_SIZE = 4096;
 
 private:
     friend class lvm::PagedMemoryAccessor;
-    friend class lvm::StackAccessor;
+    friend class lvm::StackMemoryAccessor;
     friend class Context;
-    Mode mode_;
+    IVMemUnit::Mode mode_;
     context_id_t next_context_id_;
     vaddr_t next_free_address_;  // Next available address in virtual space
-    std::unordered_map<context_id_t, std::unique_ptr<Context>> contexts_;
+    std::unordered_map<context_id_t, std::shared_ptr<Context>> contexts_;
     
     // Physical memory management
     // Physical memory blocks: context_id -> (block_index -> data)

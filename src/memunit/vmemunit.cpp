@@ -8,12 +8,12 @@
 using namespace lvm;
 
 lvm::VMemUnit::VMemUnit()
-    : mode_(Mode::UNPROTECTED),
+    : mode_(IVMemUnit::Mode::UNPROTECTED),
       next_context_id_(0),
       next_free_address_(0) {
 }
 
-void lvm::VMemUnit::set_mode(Mode mode) {
+void lvm::VMemUnit::set_mode(IVMemUnit::Mode mode) {
     mode_ = mode;
 }
 
@@ -35,9 +35,9 @@ context_id_t lvm::VMemUnit::create_context(uint32_t size) {
     // Allocate virtual space for the context
     vaddr_t base_address = allocate_virtual_space(size);
     
-    // Create the context (using new + unique_ptr since constructor is private)
+    // Create the context (using shared_ptr since constructor is private)
     context_id_t id = next_context_id_++;
-    contexts_[id] = std::unique_ptr<Context>(new Context(id, base_address, size));
+    contexts_[id] = std::shared_ptr<Context>(new Context(*this, id, base_address, size));
     
     return id;
 }
@@ -58,18 +58,18 @@ void lvm::VMemUnit::destroy_context(context_id_t id) {
     // and any associated physical memory here
 }
 
-const Context* lvm::VMemUnit::get_context(context_id_t id) const {
+std::shared_ptr<Context> lvm::VMemUnit::get_context(context_id_t id) const {
     auto it = contexts_.find(id);
     if (it == contexts_.end()) {
         return nullptr;
     }
-    return it->second.get();
+    return it->second;
 }
 
-const Context* lvm::VMemUnit::find_context_for_address(vaddr_t addr) const {
+std::shared_ptr<Context> lvm::VMemUnit::find_context_for_address(vaddr_t addr) const {
     for (const auto& [id, context] : contexts_) {
         if (context->contains(addr)) {
-            return context.get();
+            return context;
         }
     }
     return nullptr;

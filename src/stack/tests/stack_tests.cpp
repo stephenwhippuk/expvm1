@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "stack_new.h"
+#include "stack.h"
 #include "vmemunit.h"
 #include "errors.h"
 #include <stdexcept>
@@ -9,18 +9,19 @@ using namespace lvm;
 // Test fixture for new Stack tests
 class StackNewTest : public ::testing::Test {
 protected:
-    VMemUnit vmem_unit;
+    std::shared_ptr<VMemUnit> vmem_unit;
     
     void SetUp() override {
         // Tests start in unprotected mode
+        vmem_unit = std::make_shared<VMemUnit>();
     }
 };
 
 // Test stack creation in unprotected mode
 TEST_F(StackNewTest, StackCreation) {
-    Stack2 stack(vmem_unit, 1024);
+    Stack stack(vmem_unit, 1024);
     
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     EXPECT_TRUE(accessor->is_empty());
@@ -32,21 +33,21 @@ TEST_F(StackNewTest, StackCreation) {
 
 // Test stack creation fails in protected mode
 TEST_F(StackNewTest, CreationInProtectedModeFails) {
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    EXPECT_THROW(Stack2 stack(vmem_unit, 1024), lvm::runtime_error);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    EXPECT_THROW(Stack stack(vmem_unit, 1024), lvm::runtime_error);
 }
 
 // Test accessor creation fails in unprotected mode
 TEST_F(StackNewTest, AccessorCreationInUnprotectedModeFails) {
-    Stack2 stack(vmem_unit, 1024);
+    Stack stack(vmem_unit, 1024);
     // Still in unprotected mode
     EXPECT_THROW(stack.get_accessor(MemAccessMode::READ_WRITE), lvm::runtime_error);
 }
 
 // Test push and pop byte
 TEST_F(StackNewTest, PushPopByte) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     accessor->push_byte(0x42);
@@ -62,8 +63,8 @@ TEST_F(StackNewTest, PushPopByte) {
 
 // Test push and pop word
 TEST_F(StackNewTest, PushPopWord) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     accessor->push_word(0x1234);
@@ -77,8 +78,8 @@ TEST_F(StackNewTest, PushPopWord) {
 
 // Test multiple pushes
 TEST_F(StackNewTest, MultiplePushes) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     accessor->push_byte(0x10);
@@ -93,8 +94,8 @@ TEST_F(StackNewTest, MultiplePushes) {
 
 // Test stack grows upward from 0
 TEST_F(StackNewTest, GrowsUpward) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     EXPECT_EQ(accessor->get_sp(), 0);
@@ -108,8 +109,8 @@ TEST_F(StackNewTest, GrowsUpward) {
 
 // Test peek operations
 TEST_F(StackNewTest, PeekOperations) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     accessor->push_byte(0xAA);
@@ -121,8 +122,8 @@ TEST_F(StackNewTest, PeekOperations) {
 
 // Test peek from base (absolute addressing from 0)
 TEST_F(StackNewTest, PeekFromBase) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     accessor->push_byte(0x11);  // Address 0
@@ -136,8 +137,8 @@ TEST_F(StackNewTest, PeekFromBase) {
 
 // Test frame pointer sits at -1 relative to frame
 TEST_F(StackNewTest, FramePointerBehavior) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     // Push some values
@@ -155,8 +156,8 @@ TEST_F(StackNewTest, FramePointerBehavior) {
 
 // Test set frame to top
 TEST_F(StackNewTest, SetFrameToTop) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     accessor->push_byte(0x10);
@@ -182,8 +183,8 @@ TEST_F(StackNewTest, SetFrameToTop) {
 
 // Test overflow detection
 TEST_F(StackNewTest, OverflowDetection) {
-    Stack2 stack(vmem_unit, 10);  // Small capacity
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 10);  // Small capacity
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     // Fill the stack
@@ -197,8 +198,8 @@ TEST_F(StackNewTest, OverflowDetection) {
 
 // Test underflow detection
 TEST_F(StackNewTest, UnderflowDetection) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     EXPECT_TRUE(accessor->is_empty());
@@ -207,8 +208,8 @@ TEST_F(StackNewTest, UnderflowDetection) {
 
 // Test flush - should only flush current frame, preserving data below frame pointer
 TEST_F(StackNewTest, FlushStack) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     // Push some data
@@ -241,8 +242,8 @@ TEST_F(StackNewTest, FlushStack) {
 
 // Test read-only accessor
 TEST_F(StackNewTest, ReadOnlyAccessor) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     
     // Use read-write to set up
     {
@@ -266,8 +267,8 @@ TEST_F(StackNewTest, ReadOnlyAccessor) {
 
 // Test word operations with little-endian
 TEST_F(StackNewTest, WordLittleEndian) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     accessor->push_word(0x1234);
@@ -279,8 +280,8 @@ TEST_F(StackNewTest, WordLittleEndian) {
 
 // Test peek word from frame
 TEST_F(StackNewTest, PeekWordFromFrame) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     accessor->push_word(0xAAAA);  // Addresses 0-1
