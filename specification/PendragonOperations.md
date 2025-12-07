@@ -146,6 +146,8 @@ Each instruction consists of:
 | 114 | 0x72 | LDA (2)  | REG  | BYTE | REG  | BYTE | Loads a word from memory at address stored in second register into first register |
 | 115 | 0x73 | LDAH (2) | REG  | BYTE | REG  | BYTE | Loads a byte from memory at address stored in second register into high byte of first register |
 | 116 | 0x74 | LDAL (2) | REG  | BYTE | REG  | BYTE | Loads a byte from memory at address stored in second register into low byte of first register |
+| 117 | 0x75 | PUSHW    | VALUE | WORD | -    | -    | Pushes an immediate word value onto the stack |
+| 118 | 0x76 | PUSHB    | VALUE | BYTE | -    | -    | Pushes an immediate byte value onto the stack |
 | 127 | 0x7F | SYS      | FUNC | WORD | -    | -    | Call system routine |
 | 128+ | 0x80+ | -       | -    | -    | -    | -    | All higher ops reserved for extended op sets |
 

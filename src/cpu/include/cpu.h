@@ -1,14 +1,15 @@
 #pragma once
 #include "memsize.h"
 #include <vector>
-#include "vmemunit.h"
-#include "stack_new.h"
+#include "ivmemunit.h"
+#include "istack.h"
 #include "errors.h"
 #include "paged_memory_accessor.h"
 #include "register.h"
-#include "instruction_unit.h"
+#include "iinstruction_unit.h"
 #include "alu.h"
 #include "vaddr.h"
+#include "basic_io.h"
 #include <memory>
 
 namespace lvm {
@@ -24,14 +25,20 @@ namespace lvm {
     };
     class Cpu{
     public:
-        Cpu(VMemUnit& vmem_unit, addr32_t stack_capacity, addr32_t code_capacity);
+        Cpu(std::shared_ptr<IVMemUnit> vmem_unit, addr32_t stack_capacity, addr32_t code_capacity);
         ~Cpu();
+        
+        // Dependency injection for subsystems
+        void set_stack(std::shared_ptr<IStack> stack);
+        void set_instruction_unit(std::shared_ptr<IInstructionUnit> instruction_unit);
+        
         void initialize();
         void load_program(const std::vector<byte_t>& program);
         void run();
     private:
-        VMemUnit& vmem_unit_;
-        std::unique_ptr<Stack2> stack;
+        std::shared_ptr<IVMemUnit> vmem_unit_;
+        std::shared_ptr<IStack> stack_;
+        std::shared_ptr<IInstructionUnit> instruction_unit_;
         context_id_t code_context_id_;
         context_id_t data_context_id_;
         bool halted = false;
@@ -44,9 +51,9 @@ namespace lvm {
         std::shared_ptr<Register> DX;
         std::shared_ptr<Register> EX;
 
-        std::unique_ptr<Alu> alu;
+        std::unique_ptr<Alu> alu_;
         std::shared_ptr<Flags> flags;
-        std::unique_ptr<InstructionUnit> instruction_unit;
+
 
         std::shared_ptr<Register> get_register_by_code(byte_t code);
         void execute_jump(byte_t opcode, addr_t address);
@@ -64,6 +71,7 @@ namespace lvm {
         void execute_memory_operation(byte_t opcode, const std::vector<byte_t>& params);
         void execute_inc_dec_operation(byte_t opcode, const std::vector<byte_t>& params);
         void execute_subroutine_operation(byte_t opcode, const std::vector<byte_t>& params);
+        void execute_system_operation(byte_t opcode, const std::vector<byte_t>& params);
     };  
 }
 

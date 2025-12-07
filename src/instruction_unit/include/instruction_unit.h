@@ -5,7 +5,9 @@
 #include "memsize.h"
 #include "paged_memory_accessor.h"
 #include "vmemunit.h"
-#include "stack_new.h"
+#include "istack.h"
+#include "basic_io.h"
+#include "iinstruction_unit.h"
 namespace lvm{
 
     class InstructionUnit; // Forward declaration
@@ -28,6 +30,7 @@ namespace lvm{
         // subroutines
         void call_subroutine(addr_t address, bool with_return_value = false);
         void return_from_subroutine();
+        void system_call(word_t syscall_number);
 
     private:
         friend class InstructionUnit;
@@ -37,24 +40,27 @@ namespace lvm{
 
     };
 
-    class InstructionUnit{
+    class InstructionUnit : public IInstructionUnit {
     public:
-        InstructionUnit(VMemUnit& vmem_unit, context_id_t code_context_id, std::unique_ptr<StackAccessor2> stack_ptr, std::shared_ptr<Flags> flags_ptr);
+        InstructionUnit(std::shared_ptr<IVMemUnit> vmem_unit, context_id_t code_context_id, IStack& stack, std::shared_ptr<Flags> flags_ptr, std::shared_ptr<BasicIO> basic_io);
         ~InstructionUnit();
-        std::unique_ptr<InstructionUnit_Accessor> get_accessor(MemAccessMode mode);
+        
+        // IInstructionUnit interface implementation
+        std::unique_ptr<InstructionUnit_Accessor> get_accessor(MemAccessMode mode) override;
     private:
     friend class InstructionUnit_Accessor;    
-        VMemUnit& vmem_unit_;
+        std::shared_ptr<IVMemUnit> vmem_unit_;
         context_id_t code_context_id_;
         std::unique_ptr<Register> ir_register;
         std::shared_ptr<Flags> flags;
-        std::unique_ptr<StackAccessor2> stack_accessor;
+        IStack& stack_;
 
         struct ReturnStackItem {
             addr_t return_address;
             int32_t frame_pointer;  // Signed to support -1 initial value
         };
         std::vector<ReturnStackItem> return_stack;
+        std::shared_ptr<BasicIO> basic_io_;
         
         void set_IR(word_t value);
         void advance_IR(word_t offset);
@@ -63,5 +69,6 @@ namespace lvm{
         void load_program(const std::vector<byte_t>& program);
         void call_subroutine(addr_t address, bool with_return_value = false);
         void return_from_subroutine();
+        void system_call(word_t syscall_number);
     };
 }

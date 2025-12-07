@@ -1,5 +1,5 @@
-#ifndef STACK_ACCESSOR_H
-#define STACK_ACCESSOR_H
+#ifndef STACK_MEMORY_ACCESSOR_H
+#define STACK_MEMORY_ACCESSOR_H
 
 #include "memsize.h"
 #include "accessMode.h"
@@ -8,19 +8,18 @@
 #include <memory>
 #include <vector>
 
-class Context;  // Forward declaration (global namespace)
-
 namespace lvm {
-    class VMemUnit;  // Forward declaration
+    class Context;  // Forward declaration
+    class IVMemUnit;  // Forward declaration
 
-    // StackAccessor: Provides direct 32-bit addressing for stack memory
+    // StackMemoryAccessor: Provides direct 32-bit addressing for stack memory
     // - Uses simple 32-bit addressing (no page translation)
     // - Pre-allocates all physical memory upfront
     // - Provides byte and word read/write operations
     // - Designed for stack operations with predictable memory usage
-    class StackAccessor {
+    class StackMemoryAccessor {
     public:
-        ~StackAccessor() = default;
+        ~StackMemoryAccessor() = default;
 
         // Byte operations (using 32-bit address)
         byte_t read_byte(addr32_t address) const;
@@ -36,13 +35,13 @@ namespace lvm {
 
     private:
         friend class VMemUnit;  // VMemUnit can access internals
-        friend class ::Context;   // Context can construct accessors
-        StackAccessor(VMemUnit& vmem_unit, context_id_t context_id, addr32_t size);
+        friend class Context;   // Context can construct accessors
+        StackMemoryAccessor(const Context& context);
 
-        VMemUnit& vmem_unit_;
+        const Context& context_;
         context_id_t context_id_;
         addr32_t size_;  // Total size of stack
     };
 }
 
-#endif // STACK_ACCESSOR_H
+#endif // STACK_MEMORY_ACCESSOR_H

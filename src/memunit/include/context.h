@@ -8,10 +8,9 @@
 #include <memory>
 
 namespace lvm {
-    class VMemUnit;  // Forward declaration
+    class IVMemUnit;  // Forward declaration
     class PagedMemoryAccessor;  // Forward declaration
-    class StackAccessor;  // Forward declaration
-}
+    class StackMemoryAccessor;  // Forward declaration
 
 // Context: represents a contiguous virtual address space up to 4GB
 // - Each context has a unique ID
@@ -34,40 +33,21 @@ public:
     // Create a paged memory accessor for this context
     // - Only allowed in PROTECTED mode
     // - Accessor should be used immediately and discarded, not stored
-    std::unique_ptr<lvm::PagedMemoryAccessor> create_paged_accessor(
-        lvm::VMemUnit& vmem_unit, lvm::MemAccessMode mode) const;
+    std::unique_ptr<PagedMemoryAccessor> create_paged_accessor(MemAccessMode mode) const;
     
     // Create a Stack accessor for this context
     // - Only allowed in PROTECTED mode
     // - Pre-allocates all physical memory for the stack
     // - Accessor should be used immediately and discarded, not stored
-    std::unique_ptr<lvm::StackAccessor> create_stack_accessor(
-        lvm::VMemUnit& vmem_unit) const;
+    std::unique_ptr<StackMemoryAccessor> create_stack_accessor() const;
 
 private:
-    friend class lvm::VMemUnit;             // Can access context internals and construct
-    friend class lvm::PagedMemoryAccessor;  // Can access page state
-    friend class lvm::StackAccessor;        // Can access for construction
+    friend class VMemUnit;             // Can access context internals and construct
+    friend class PagedMemoryAccessor;  // Can access page state
+    friend class StackMemoryAccessor;  // Can access for construction
     
     // Constructor - only VMemUnit can create contexts
-    Context(context_id_t id, vaddr_t base_address, uint32_t size);
-    
-    // Test friends
-    friend class ContextTest_Creation_Test;
-    friend class ContextTest_Contains_Test;
-    friend class ContextTest_InvalidAddress_Test;
-    friend class ContextTest_Overflow_Test;
-    friend class VMemUnitTest_InitialState_Test;
-    friend class VMemUnitTest_ModeSwitch_Test;
-    friend class VMemUnitTest_CreateContextUnprotected_Test;
-    friend class VMemUnitTest_CreateContextProtectedFails_Test;
-    friend class VMemUnitTest_CreateMultipleContexts_Test;
-    friend class VMemUnitTest_DestroyContext_Test;
-    friend class VMemUnitTest_DestroyContextProtectedFails_Test;
-    friend class VMemUnitTest_DestroyNonExistentContext_Test;
-    friend class VMemUnitTest_GetNonExistentContext_Test;
-    friend class VMemUnitTest_CreateContextZeroSize_Test;
-    friend class VMemUnitTest_FindContextForAddress_Test;
+    Context(IVMemUnit& vmem_unit, context_id_t id, vaddr_t base_address, uint32_t size);
     
     // Accessors (private - accessed by VMemUnit and accessors)
     context_id_t get_id() const { return id_; }
@@ -79,13 +59,16 @@ private:
     bool contains(vaddr_t addr) const;
     
     // Page management for paged memory access (private - accessed via PagedMemoryAccessor)
-    void set_current_page(lvm::page_t page) { current_page_ = page; }
-    lvm::page_t get_current_page() const { return current_page_; }
+    void set_current_page(page_t page) { current_page_ = page; }
+    page_t get_current_page() const { return current_page_; }
     
+    IVMemUnit& vmem_unit_;  // Reference to VMemUnit (VMemUnit outlives Context)
     context_id_t id_;
     vaddr_t base_address_;  // Starting address in 40-bit space
     uint32_t size_;         // Size in bytes (max 4GB)
-    lvm::page_t current_page_;   // Current page for paged memory access
+    page_t current_page_;   // Current page for paged memory access
 };
+
+}  // namespace lvm
 
 #endif // CONTEXT_H

@@ -1,8 +1,31 @@
-# Stack2 - Upward-Growing Stack with Frame Support
+# Stack - Upward-Growing Stack with Frame Support
 
 ## Purpose
 
-Stack2 provides a modern upward-growing stack implementation with frame pointer support for subroutine calls. It enables clean separation between stack frames, local variables, and supports both absolute and frame-relative addressing.
+Stack provides a modern upward-growing stack implementation with frame pointer support for subroutine calls. It enables clean separation between stack frames, local variables, and supports both absolute and frame-relative addressing.
+
+## Interface Design
+
+### IStack Interface
+
+Stack implements the `IStack` pure virtual interface, enabling dependency injection:
+
+```cpp
+class IStack {
+public:
+    virtual std::unique_ptr<StackAccessor> get_accessor(MemAccessMode mode) = 0;
+    virtual addr32_t get_sp() const = 0;
+    virtual int32_t get_fp() const = 0;
+    virtual addr32_t get_capacity() const = 0;
+    virtual ~IStack() = default;
+};
+```
+
+**Key Points:**
+- All operations go through ephemeral `StackAccessor` objects
+- Direct inspection methods (get_sp, get_fp, get_capacity) for debugging
+- CPU and InstructionUnit depend on IStack interface, not concrete Stack
+- Enables testing with mock stack implementations
 
 ## Architecture Overview
 
@@ -38,22 +61,26 @@ Low Address
 
 ## Interface
 
-### Stack2 Class
+### Stack Class
 
 ```cpp
-class Stack2 {
+class Stack : public IStack {
+public:
     // Construction (UNPROTECTED mode only)
-    Stack2(VMemUnit& vmem_unit, addr32_t capacity);
+    Stack(std::shared_ptr<IVMemUnit> vmem_unit, addr32_t capacity);
     
-    // Accessor creation (PROTECTED mode only)
-    std::unique_ptr<StackAccessor2> get_accessor(MemAccessMode mode);
+    // IStack interface implementation
+    std::unique_ptr<StackAccessor> get_accessor(MemAccessMode mode) override;
+    addr32_t get_sp() const override;
+    int32_t get_fp() const override;
+    addr32_t get_capacity() const override;
 };
 ```
 
-### StackAccessor2 Class
+### StackAccessor Class
 
 ```cpp
-class StackAccessor2 {
+class StackAccessor {
     // Basic stack operations
     void push_byte(byte_t value);
     void push_word(word_t value);
@@ -85,15 +112,17 @@ class StackAccessor2 {
 ### Example 1: Basic Stack Operations
 
 ```cpp
-#include "stack_new.h"
+#include "stack.h"
 #include "vmemunit.h"
+
+using namespace lvm;
 
 // Create VM and stack
 VMemUnit vmem_unit;
-Stack2 stack(vmem_unit, 1024);  // 1KB capacity
+Stack stack(vmem_unit, 1024);  // 1KB capacity
 
 // Switch to protected mode
-vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+vmem_unit.set_mode(IVMemUnit::Mode::PROTECTED);
 
 // Get accessor
 auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
@@ -192,9 +221,10 @@ if (has_return) {
 ### Example 5: Nested Subroutine Calls
 
 ```cpp
+using namespace lvm;
 VMemUnit vmem_unit;
-Stack2 stack(vmem_unit, 1024);
-vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+Stack stack(vmem_unit, 1024);
+vmem_unit.set_mode(IVMemUnit::Mode::PROTECTED);
 auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
 
 // First call

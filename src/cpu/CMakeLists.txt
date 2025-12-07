@@ -14,6 +14,7 @@ target_include_directories(lvm_cpu PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../stack/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../instruction_unit/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../helpers/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../basic_io/include
 )
 
 target_link_libraries(lvm_cpu PUBLIC
@@ -23,4 +24,5 @@ target_link_libraries(lvm_cpu PUBLIC
     lvm_stack
     lvm_instruction_unit
     lvm_helpers
+    lvm_basic_io
 )

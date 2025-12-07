@@ -6,48 +6,52 @@
 
 using namespace lvm;
 
-StackAccessor::StackAccessor(VMemUnit& vmem_unit, context_id_t context_id, addr32_t size)
-    : vmem_unit_(vmem_unit),
-      context_id_(context_id),
-      size_(size) {
+StackMemoryAccessor::StackMemoryAccessor(const Context& context)
+    : context_(context),
+      context_id_(context.get_id()),
+      size_(context.get_size()) {
     
     // Pre-allocate all physical memory for the stack
     // This ensures stack has guaranteed memory availability
-    for (addr32_t addr = 0; addr < size; ++addr) {
+    // Access VMemUnit through Context
+    VMemUnit& vmem = static_cast<VMemUnit&>(context_.vmem_unit_);
+    for (addr32_t addr = 0; addr < size_; ++addr) {
         // Touch each block to ensure allocation
-        if (addr % vmem_unit.BLOCK_SIZE == 0) {
-            vmem_unit_.ensure_physical_memory(context_id_, addr);
+        if (addr % VMemUnit::BLOCK_SIZE == 0) {
+            vmem.ensure_physical_memory(context_id_, addr);
         }
     }
 }
 
-byte_t StackAccessor::read_byte(addr32_t address) const {
-    if (!vmem_unit_.is_protected()) {
-        throw lvm::runtime_error("Cannot read from StackAccessor while VMemUnit is in unprotected mode");
+byte_t StackMemoryAccessor::read_byte(addr32_t address) const {
+    if (!context_.vmem_unit_.is_protected()) {
+        throw lvm::runtime_error("Cannot read from StackMemoryAccessor while VMemUnit is in unprotected mode");
     }
     
     if (address >= size_) {
         throw std::runtime_error("Stack address out of bounds");
     }
     
-    return vmem_unit_.read_byte(context_id_, address);
+    VMemUnit& vmem = static_cast<VMemUnit&>(context_.vmem_unit_);
+    return vmem.read_byte(context_id_, address);
 }
 
-void StackAccessor::write_byte(addr32_t address, byte_t value) {
-    if (!vmem_unit_.is_protected()) {
-        throw lvm::runtime_error("Cannot write to StackAccessor while VMemUnit is in unprotected mode");
+void StackMemoryAccessor::write_byte(addr32_t address, byte_t value) {
+    if (!context_.vmem_unit_.is_protected()) {
+        throw lvm::runtime_error("Cannot write to StackMemoryAccessor while VMemUnit is in unprotected mode");
     }
     
     if (address >= size_) {
         throw std::runtime_error("Stack address out of bounds");
     }
     
-    vmem_unit_.write_byte(context_id_, address, value);
+    VMemUnit& vmem = static_cast<VMemUnit&>(context_.vmem_unit_);
+    vmem.write_byte(context_id_, address, value);
 }
 
-word_t StackAccessor::read_word(addr32_t address) const {
-    if (!vmem_unit_.is_protected()) {
-        throw lvm::runtime_error("Cannot read from StackAccessor while VMemUnit is in unprotected mode");
+word_t StackMemoryAccessor::read_word(addr32_t address) const {
+    if (!context_.vmem_unit_.is_protected()) {
+        throw lvm::runtime_error("Cannot read from StackMemoryAccessor while VMemUnit is in unprotected mode");
     }
     
     if (address + 1 >= size_) {
@@ -60,9 +64,9 @@ word_t StackAccessor::read_word(addr32_t address) const {
     return combine_bytes_to_word(high, low);
 }
 
-void StackAccessor::write_word(addr32_t address, word_t value) {
-    if (!vmem_unit_.is_protected()) {
-        throw lvm::runtime_error("Cannot write to StackAccessor while VMemUnit is in unprotected mode");
+void StackMemoryAccessor::write_word(addr32_t address, word_t value) {
+    if (!context_.vmem_unit_.is_protected()) {
+        throw lvm::runtime_error("Cannot write to StackMemoryAccessor while VMemUnit is in unprotected mode");
     }
     
     if (address + 1 >= size_) {

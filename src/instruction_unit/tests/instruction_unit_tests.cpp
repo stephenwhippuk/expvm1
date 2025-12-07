@@ -2,26 +2,31 @@
 #include "memsize.h"
 #include "instruction_unit.h"
 #include "vmemunit.h"
-#include "stack_new.h"
+#include "stack.h"
 #include "flags.h"
 #include "accessMode.h"
+#include "basic_io.h"
 
 using namespace lvm;
 
 // InstructionUnit test fixture
 class InstructionUnitTest : public ::testing::Test {
 protected:
-    std::unique_ptr<VMemUnit> vmem_unit;
+    std::shared_ptr<VMemUnit> vmem_unit;
     std::shared_ptr<Flags> flags;
-    std::unique_ptr<Stack2> stack;
+    std::shared_ptr<Stack> stack;
+    std::shared_ptr<BasicIO> basic_io;
     context_id_t code_context_id;
     
     void SetUp() override {
-        vmem_unit = std::make_unique<VMemUnit>();
+        vmem_unit = std::make_shared<VMemUnit>();
         flags = std::make_shared<Flags>();
         
         // Create stack with 1KB capacity (in UNPROTECTED mode)
-        stack = std::make_unique<Stack2>(*vmem_unit, 1024);
+        stack = std::make_shared<Stack>(vmem_unit, 1024);
+        
+        // Create BasicIO
+        basic_io = std::make_shared<BasicIO>(vmem_unit, stack);
         
         // Create code context with 64KB capacity (in UNPROTECTED mode)
         code_context_id = vmem_unit->create_context(65536);
@@ -31,17 +36,15 @@ protected:
     }
     
     std::unique_ptr<InstructionUnit> createInstructionUnit() {
-        // Get stack accessor in PROTECTED mode
-        auto stack_accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
-        
         // Switch to UNPROTECTED mode for InstructionUnit creation
         vmem_unit->set_mode(VMemUnit::Mode::UNPROTECTED);
         
         auto iu = std::make_unique<InstructionUnit>(
-            *vmem_unit,
+            vmem_unit,
             code_context_id,
-            std::move(stack_accessor),
-            flags
+            *stack,  // Pass stack interface, not accessor
+            flags,
+            basic_io
         );
         
         // Switch back to PROTECTED mode for normal operation
@@ -305,17 +308,13 @@ TEST_F(InstructionUnitTest, ProgramTooLarge) {
     vmem_unit->set_mode(VMemUnit::Mode::UNPROTECTED);
     context_id_t small_code_ctx = vmem_unit->create_context(256);
     
-    // Get stack accessor in PROTECTED mode
-    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
-    auto stack_accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
-    
-    // Create InstructionUnit in UNPROTECTED mode
-    vmem_unit->set_mode(VMemUnit::Mode::UNPROTECTED);
+    // Create InstructionUnit in UNPROTECTED mode with stack interface
     auto iu = std::make_unique<InstructionUnit>(
-        *vmem_unit,
+        vmem_unit,
         small_code_ctx,
-        std::move(stack_accessor),
-        flags
+        *stack,  // Pass stack interface
+        flags,
+        basic_io
     );
     
     vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);

@@ -23,10 +23,10 @@ protected:
 // Test accessor creation in protected mode
 TEST_F(PagedMemoryAccessorTest, AccessorCreation) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
+    auto ctx = vmem_unit.get_context(context_id);
     ASSERT_NE(ctx, nullptr);
     
-    auto accessor = ctx->create_paged_accessor(vmem_unit, MemAccessMode::READ_WRITE);
+    auto accessor = ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
     ASSERT_NE(accessor, nullptr);
     EXPECT_EQ(accessor->get_context_id(), context_id);
 }
@@ -34,18 +34,18 @@ TEST_F(PagedMemoryAccessorTest, AccessorCreation) {
 // Test accessor creation fails in unprotected mode
 TEST_F(PagedMemoryAccessorTest, AccessorCreationUnprotectedFails) {
     // Leave in unprotected mode
-    const Context* ctx = vmem_unit.get_context(context_id);
+    auto ctx = vmem_unit.get_context(context_id);
     ASSERT_NE(ctx, nullptr);
     
-    EXPECT_THROW(ctx->create_paged_accessor(vmem_unit, MemAccessMode::READ_WRITE), 
+    EXPECT_THROW(ctx->create_paged_accessor(MemAccessMode::READ_WRITE), 
                  std::runtime_error);
 }
 
 // Test page switching via accessor
 TEST_F(PagedMemoryAccessorTest, PageSwitching) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_paged_accessor(vmem_unit, MemAccessMode::READ_WRITE);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
     
     // Test page management through accessor
     EXPECT_EQ(accessor->get_page(), 0);  // Initial page is 0
@@ -59,8 +59,8 @@ TEST_F(PagedMemoryAccessorTest, PageSwitching) {
 // Test byte read/write with on-demand allocation
 TEST_F(PagedMemoryAccessorTest, ByteReadWrite) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_paged_accessor(vmem_unit, MemAccessMode::READ_WRITE);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
     
     // Write to page 0, offset 0x100
     accessor->write_byte(0x100, 0x42);
@@ -73,8 +73,8 @@ TEST_F(PagedMemoryAccessorTest, ByteReadWrite) {
 // Test byte operations across pages
 TEST_F(PagedMemoryAccessorTest, ByteOperationsAcrossPages) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    Context* ctx = const_cast<Context*>(vmem_unit.get_context(context_id));
-    auto accessor = ctx->create_paged_accessor(vmem_unit, MemAccessMode::READ_WRITE);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
     
     // Write to page 0
     accessor->set_page(0);
@@ -96,8 +96,8 @@ TEST_F(PagedMemoryAccessorTest, ByteOperationsAcrossPages) {
 // Test word read/write (little-endian)
 TEST_F(PagedMemoryAccessorTest, WordReadWrite) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_paged_accessor(vmem_unit, MemAccessMode::READ_WRITE);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
     
     accessor->write_word(0x400, 0x1234);
     
@@ -112,8 +112,8 @@ TEST_F(PagedMemoryAccessorTest, WordReadWrite) {
 // Test bulk write and read
 TEST_F(PagedMemoryAccessorTest, BulkOperations) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_paged_accessor(vmem_unit, MemAccessMode::READ_WRITE);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
     
     
     // Write data
@@ -133,8 +133,8 @@ TEST_F(PagedMemoryAccessorTest, BulkOperations) {
 // Test read-only accessor
 TEST_F(PagedMemoryAccessorTest, ReadOnlyAccessor) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_paged_accessor(vmem_unit, MemAccessMode::READ_ONLY);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
     
     
     // Write should fail
@@ -148,8 +148,8 @@ TEST_F(PagedMemoryAccessorTest, ReadOnlyAccessor) {
 // Test operations in protected mode work (accessor obtained in protected mode)
 TEST_F(PagedMemoryAccessorTest, ProtectedModeOperations) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_paged_accessor(vmem_unit, MemAccessMode::READ_WRITE);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
     
     // Operations should work in protected mode
     accessor->write_byte(0x100, 0x42);
@@ -161,8 +161,8 @@ TEST_F(PagedMemoryAccessorTest, AddressOutOfBounds) {
     // Create small context (1 page = 64KB)
     context_id_t small_ctx = vmem_unit.create_context(0x10000);
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    Context* ctx = const_cast<Context*>(vmem_unit.get_context(small_ctx));
-    auto accessor = ctx->create_paged_accessor(vmem_unit, MemAccessMode::READ_WRITE);
+    auto ctx = vmem_unit.get_context(small_ctx);
+    auto accessor = ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
     
     // Page 0 is valid
     accessor->set_page(0);
@@ -176,8 +176,8 @@ TEST_F(PagedMemoryAccessorTest, AddressOutOfBounds) {
 // Test default read returns zero
 TEST_F(PagedMemoryAccessorTest, DefaultReadReturnsZero) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    const Context* ctx = vmem_unit.get_context(context_id);
-    auto accessor = ctx->create_paged_accessor(vmem_unit, MemAccessMode::READ_WRITE);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
     
     
     // Read from unallocated memory should return 0
@@ -188,8 +188,8 @@ TEST_F(PagedMemoryAccessorTest, DefaultReadReturnsZero) {
 // Test page+address to 32-bit address translation
 TEST_F(PagedMemoryAccessorTest, PageAddressTranslation) {
     vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
-    Context* ctx = const_cast<Context*>(vmem_unit.get_context(context_id));
-    auto accessor = ctx->create_paged_accessor(vmem_unit, MemAccessMode::READ_WRITE);
+    auto ctx = vmem_unit.get_context(context_id);
+    auto accessor = ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
     
     // Page 0x0001, offset 0x2345 = 0x00012345
     accessor->set_page(0x0001);

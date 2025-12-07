@@ -1,22 +1,22 @@
 #include "instruction_unit.h"
 #include "errors.h"
-#include "stack_new.h"
+#include "istack.h"
+#include "stack.h"
 #include "vmemunit.h"
-
+#include "systemcalls.h"
+#include "basic_io.h"
+#include "basic_io_accessor.h"
 #include <iostream>
 using namespace lvm;
 
-InstructionUnit::InstructionUnit(VMemUnit& vmem_unit, context_id_t code_context_id, std::unique_ptr<StackAccessor2> stack_ptr, std::shared_ptr<Flags> flags_ptr)
-       : vmem_unit_(vmem_unit),
+InstructionUnit::InstructionUnit(std::shared_ptr<IVMemUnit> vmem_unit, context_id_t code_context_id, IStack& stack, std::shared_ptr<Flags> flags_ptr, std::shared_ptr<BasicIO> basic_io)
+    : vmem_unit_(std::move(vmem_unit)),
          code_context_id_(code_context_id),
-         stack_accessor(std::move(stack_ptr))
+         stack_(stack),
+         basic_io_(std::move(basic_io))
 {
-    // assert stack_ptr is valid
-    if (!stack_accessor) {
-        throw lvm::runtime_error("InstructionUnit requires a valid StackAccessor2");
-    }
     // assert memory is in unprotected mode
-    if(vmem_unit_.is_protected()) {
+    if(vmem_unit_->is_protected()) {
         throw lvm::runtime_error("InstructionUnit must be created in unprotected mode");
     }
 
@@ -50,8 +50,8 @@ void InstructionUnit::jump_to_address_conditional(addr_t address, Flag flag, boo
 }
 
 void InstructionUnit::load_program(const std::vector<byte_t>& program) {
-    const Context* code_ctx = vmem_unit_.get_context(code_context_id_);
-    auto code_accessor = code_ctx->create_paged_accessor(vmem_unit_, MemAccessMode::READ_WRITE);
+    auto code_ctx = vmem_unit_->get_context(code_context_id_);
+    auto code_accessor = code_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
     
     // Write program to code space across pages (optimized)
     const size_t PAGE_SIZE = 256; // Assuming 256 bytes per page
@@ -73,6 +73,7 @@ void InstructionUnit::load_program(const std::vector<byte_t>& program) {
 }
 
 void InstructionUnit::call_subroutine(addr_t address, bool with_return_value){
+    auto stack_accessor = stack_.get_accessor(MemAccessMode::READ_WRITE);
 
     ReturnStackItem item;
     item.return_address = ir_register->get_value();
@@ -103,7 +104,7 @@ void InstructionUnit::return_from_subroutine() {
 
     ir_register->set_value(item.return_address);
     
-
+    auto stack_accessor = stack_.get_accessor(MemAccessMode::READ_WRITE);
     byte_t has_return_value = stack_accessor->peek_byte_from_frame(0);
     
     if(has_return_value) {
@@ -118,5 +119,25 @@ void InstructionUnit::return_from_subroutine() {
         stack_accessor->flush();
         stack_accessor->set_frame_pointer(item.frame_pointer);
         stack_accessor->pop_byte();
+    }
+}
+
+void InstructionUnit::system_call(word_t syscall_number) {
+    auto io_accessor = basic_io_->get_accessor();
+    switch (syscall_number) {
+        case SYSCALL_PRINT_STRING_FROM_STACK: {
+            io_accessor->write_string_from_stack();
+            break;
+        }
+            case SYSCALL_PRINT_LINE_FROM_STACK: {
+            io_accessor->write_line_from_stack();
+            break;
+        }
+        case SYSCALL_READ_LINE_ONTO_STACK: {
+            io_accessor->read_line_onto_stack();
+            break;
+        }
+        default:
+            throw lvm::runtime_error("Invalid system call number: " + std::to_string(syscall_number));
     }
 }

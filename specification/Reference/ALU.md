@@ -4,6 +4,60 @@
 
 The ALU performs all arithmetic and logical operations for the Pendragon VM, operating on the accumulator register and automatically setting flags based on operation results. It supports 16-bit word and 8-bit byte operations with overflow and carry detection.
 
+## Interface Design
+
+### IALU Interface
+
+Alu implements the `IALU` pure virtual interface with all 26 operations:
+
+```cpp
+class IALU {
+public:
+    // Arithmetic operations (16-bit)
+    virtual void add(word_t value) = 0;
+    virtual void sub(word_t value) = 0;
+    virtual void mul(word_t value) = 0;
+    virtual void div(word_t value) = 0;
+    virtual void rem(word_t value) = 0;
+    
+    // Arithmetic operations (8-bit)
+    virtual void add_byte(byte_t value) = 0;
+    virtual void sub_byte(byte_t value) = 0;
+    virtual void mul_byte(byte_t value) = 0;
+    virtual void div_byte(byte_t value) = 0;
+    virtual void rem_byte(byte_t value) = 0;
+    
+    // Logical operations (16-bit)
+    virtual void bit_and(word_t value) = 0;
+    virtual void bit_or(word_t value) = 0;
+    virtual void bit_xor(word_t value) = 0;
+    virtual void bit_not() = 0;
+    
+    // Logical operations (8-bit)
+    virtual void bit_and_byte(byte_t value) = 0;
+    virtual void bit_or_byte(byte_t value) = 0;
+    virtual void bit_xor_byte(byte_t value) = 0;
+    
+    // Shift and rotate
+    virtual void shl(word_t count) = 0;
+    virtual void shr(word_t count) = 0;
+    virtual void rol(word_t count) = 0;
+    virtual void ror(word_t count) = 0;
+    
+    // Comparison
+    virtual void cmp(word_t value) = 0;
+    virtual void cmp_byte(byte_t value) = 0;
+    
+    virtual ~IALU() = default;
+};
+```
+
+**Key Points:**
+- All 26 operation methods are pure virtual
+- CPU owns the ALU (not injected) because ALU needs access to AX register
+- CPU creates `std::unique_ptr<Alu>` internally during construction
+- Unlike other subsystems, ALU is not injected because it's tightly coupled to the register file
+
 ## Architecture Overview
 
 ### Core Concepts
@@ -34,46 +88,47 @@ OVERFLOW (V) : Set on signed overflow (result doesn't fit in signed range)
 ### Alu Class
 
 ```cpp
-class Alu {
+class Alu : public IALU {
+public:
     // Construction (requires register with flags)
     Alu(std::shared_ptr<Register> acc);
     Alu(const Alu& other);
     ~Alu();
     
-    // Arithmetic operations (16-bit)
-    void add(word_t value);
-    void sub(word_t value);
-    void mul(word_t value);
-    void div(word_t value);
-    void rem(word_t value);
+    // IALU interface implementation - Arithmetic operations (16-bit)
+    void add(word_t value) override;
+    void sub(word_t value) override;
+    void mul(word_t value) override;
+    void div(word_t value) override;
+    void rem(word_t value) override;
     
     // Arithmetic operations (8-bit)
-    void add_byte(byte_t value);
-    void sub_byte(byte_t value);
-    void mul_byte(byte_t value);
-    void div_byte(byte_t value);
-    void rem_byte(byte_t value);
+    void add_byte(byte_t value) override;
+    void sub_byte(byte_t value) override;
+    void mul_byte(byte_t value) override;
+    void div_byte(byte_t value) override;
+    void rem_byte(byte_t value) override;
     
     // Logical operations (16-bit)
-    void bit_and(word_t value);
-    void bit_or(word_t value);
-    void bit_xor(word_t value);
-    void bit_not();
+    void bit_and(word_t value) override;
+    void bit_or(word_t value) override;
+    void bit_xor(word_t value) override;
+    void bit_not() override;
     
     // Logical operations (8-bit)
-    void bit_and_byte(byte_t value);
-    void bit_or_byte(byte_t value);
-    void bit_xor_byte(byte_t value);
+    void bit_and_byte(byte_t value) override;
+    void bit_or_byte(byte_t value) override;
+    void bit_xor_byte(byte_t value) override;
     
     // Shift and rotate (16-bit only)
-    void shl(word_t count);  // Shift left
-    void shr(word_t count);  // Shift right
-    void rol(word_t count);  // Rotate left
-    void ror(word_t count);  // Rotate right
+    void shl(word_t count) override;  // Shift left
+    void shr(word_t count) override;  // Shift right
+    void rol(word_t count) override;  // Rotate left
+    void ror(word_t count) override;  // Rotate right
     
     // Comparison (sets flags, doesn't modify accumulator)
-    void cmp(word_t value);
-    void cmp_byte(byte_t value);
+    void cmp(word_t value) override;
+    void cmp_byte(byte_t value) override;
     
 private:
     std::shared_ptr<Register> accumulator;

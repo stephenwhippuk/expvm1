@@ -12,12 +12,14 @@ target_include_directories(lvm_instruction_unit PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../stack/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../register/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../helpers/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../basic_io/include
 )
 
 target_link_libraries(lvm_instruction_unit PUBLIC
     lvm_memunit
     lvm_stack
     lvm_register
+    lvm_basic_io
 )
 
 # Tests
@@ -31,6 +33,7 @@ if(BUILD_TESTING)
         lvm_stack
         lvm_memunit
         lvm_register
+        lvm_basic_io
         GTest::gtest_main
     )
     

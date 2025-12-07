@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "stack_new.h"
+#include "stack.h"
 #include "vmemunit.h"
 #include "errors.h"
 
@@ -8,17 +8,18 @@ using namespace lvm;
 // Test fixture for subroutine-related stack operations
 class StackSubroutineTest : public ::testing::Test {
 protected:
-    VMemUnit vmem_unit;
+    std::shared_ptr<VMemUnit> vmem_unit;
     
     void SetUp() override {
         // Tests start in unprotected mode
+        vmem_unit = std::make_shared<VMemUnit>();
     }
 };
 
 // Test basic call setup - push flag and set frame
 TEST_F(StackSubroutineTest, CallSetup) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     // Simulate call without return value
@@ -32,8 +33,8 @@ TEST_F(StackSubroutineTest, CallSetup) {
 
 // Test call with return value flag
 TEST_F(StackSubroutineTest, CallWithReturnValue) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     // Simulate call with return value
@@ -50,8 +51,8 @@ TEST_F(StackSubroutineTest, CallWithReturnValue) {
 
 // Test subroutine pushes local variables
 TEST_F(StackSubroutineTest, SubroutineLocalVariables) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     // Setup call frame
@@ -76,8 +77,8 @@ TEST_F(StackSubroutineTest, SubroutineLocalVariables) {
 
 // Test return without return value - flush clears locals
 TEST_F(StackSubroutineTest, ReturnWithoutValue) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     // Setup call frame
@@ -102,8 +103,8 @@ TEST_F(StackSubroutineTest, ReturnWithoutValue) {
 
 // Test return with return value
 TEST_F(StackSubroutineTest, ReturnWithValue) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     // Setup call frame
@@ -134,8 +135,8 @@ TEST_F(StackSubroutineTest, ReturnWithValue) {
 
 // Test nested calls - multiple frames
 TEST_F(StackSubroutineTest, NestedCalls) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     // First call
@@ -182,8 +183,8 @@ TEST_F(StackSubroutineTest, NestedCalls) {
 
 // Test frame protects data below it
 TEST_F(StackSubroutineTest, FrameProtectsData) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     // Push some data before call
@@ -209,8 +210,8 @@ TEST_F(StackSubroutineTest, FrameProtectsData) {
 
 // Test complete call/return sequence
 TEST_F(StackSubroutineTest, CompleteCallReturnSequence) {
-    Stack2 stack(vmem_unit, 1024);
-    vmem_unit.set_mode(VMemUnit::Mode::PROTECTED);
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     // Caller pushes arguments

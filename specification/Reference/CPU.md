@@ -2,18 +2,69 @@
 
 ## Purpose
 
-The CPU is the primary execution engine of the Pendragon VM, responsible for fetching instructions, decoding opcodes, dispatching operations to appropriate handlers, and managing the overall program execution lifecycle.
+The CPU is the primary execution engine of the Pendragon VM, responsible for fetching instructions, decoding opcodes, dispatching operations to appropriate handlers, and managing the overall program execution lifecycle. It uses an interface-based architecture with dependency injection, integrating subsystems through their abstract interfaces (IVMemUnit, IStack, IInstructionUnit, IALU) to enable loose coupling and testability.
+
+## Interface Design
+
+### Dependency Injection Architecture
+
+The CPU follows a dependency injection pattern where subsystems are created externally and injected via interfaces:
+
+```cpp
+// CPU header depends ONLY on interfaces
+#include "ivmemunit.h"
+#include "istack.h"
+#include "iinstruction_unit.h"
+#include "alu.h"  // Created internally, not injected
+
+class Cpu {
+private:
+    IVMemUnit& vmem_unit_;           // Injected via constructor
+    IStack* stack_;                  // Injected via set_stack()
+    IInstructionUnit* instr_unit_;   // Injected via set_instruction_unit()
+    std::unique_ptr<Alu> alu_;       // Created internally (needs AX register)
+};
+```
+
+**Benefits:**
+- **Decoupled Compilation**: CPU header includes only interfaces, not concrete implementations
+- **Testability**: Can inject mock implementations for unit testing
+- **Flexibility**: Different subsystem implementations can be used
+- **Clear Contracts**: Interface defines exactly what CPU needs from each subsystem
+
+**Why ALU is Different:**
+The ALU is created internally by the CPU because it requires direct access to the AX register for flag management. This tight coupling makes dependency injection unnecessary and potentially harmful to encapsulation.
+
+### Construction and Initialization Sequence
+
+1. **VM creates subsystems** in UNPROTECTED mode:
+   - VMemUnit (created first)
+   - Stack (needs VMemUnit)
+   - InstructionUnit (needs VMemUnit, Stack accessor, Flags)
+
+2. **Switch to PROTECTED mode** for runtime operations
+
+3. **Create CPU** with IVMemUnit reference:
+   - CPU stores reference to IVMemUnit&
+   - CPU creates ALU internally with AX register
+
+4. **Inject subsystems** via setter methods:
+   - `cpu.set_stack(*stack)` - Injects IStack interface
+   - `cpu.set_instruction_unit(*instruction_unit)` - Injects IInstructionUnit interface
+
+5. **Ready for execution** - All subsystems connected via interfaces
 
 ## Architecture Overview
 
 ### Core Components
 
-- **Registers**: Five general-purpose 16-bit registers (AX, BX, CX, DX, EX)
-- **ALU**: Arithmetic Logic Unit for computations
-- **Instruction Unit**: Program counter and instruction fetching
-- **Stack**: Subroutine call/return and temporary storage
-- **Flags**: Status flags for conditional operations
-- **Memory Contexts**: Separate code and data memory spaces
+The CPU integrates the following subsystems through dependency injection:
+- **IVMemUnit&**: Virtual memory management interface (injected via constructor)
+- **IStack***: Call stack and local variables interface (injected via set_stack())
+- **IInstructionUnit***: Program counter and instruction fetching interface (injected via set_instruction_unit())
+- **Alu**: Arithmetic and logical operations (created internally, owns unique_ptr<Alu>)
+- **Register File**: 8 general-purpose 16-bit registers (AX-HX)
+- **Flags**: Zero, Sign, Carry, Overflow status bits
 
 ### Execution Model
 
@@ -35,7 +86,7 @@ The CPU is the primary execution engine of the Pendragon VM, responsible for fet
 │  └─────────────────────────────┘   │
 │                                     │
 │  ┌─────────────────────────────┐   │
-│  │         Stack2               │   │  ← Call Stack
+│  │         Stack               │   │  ← Call Stack
 │  └─────────────────────────────┘   │
 └─────────────────────────────────────┘
          │            │
@@ -48,14 +99,17 @@ The CPU is the primary execution engine of the Pendragon VM, responsible for fet
 
 The CPU uses range-based dispatch to route opcodes to specialized handlers:
 
-1. **Memory Operations** (0x00-0x33, 0x72-0x74): Load, store, push, pop
-2. **Increment/Decrement** (0x34-0x35): Register arithmetic
-3. **Jump Operations** (0x36-0x46): Conditional and unconditional branching
-4. **Subroutine Operations** (0x47-0x4B): Call, return, frame management
-5. **Arithmetic Operations** (0x4C-0x68): Add, subtract, multiply, divide, remainder
-6. **Logical Operations** (0x69-0x6E): AND, OR, XOR
-7. **Shift/Rotate Operations** (0x6F-0x72): Bit manipulation
-8. **Compare Operations** (0x73-0x74): Set flags based on comparison
+1. **Memory Operations** (0x02-0x0F, 0x10-0x1D, 0x72-0x76): Load, store, push, pop
+   - Includes PUSHW (0x75) and PUSHB (0x76) for immediate value stack operations
+2. **Jump Operations** (0x1E-0x26): Conditional and unconditional branching
+3. **Subroutine Operations** (0x27-0x28): Call, return, frame management
+4. **Arithmetic Operations** (0x29-0x3D): Add, subtract, multiply, divide, remainder
+5. **Logical Operations** (0x42-0x55): AND, OR, XOR, NOT
+6. **Shift/Rotate Operations** (0x56-0x69): Bit manipulation
+7. **Increment/Decrement** (0x6A-0x6B): Register arithmetic
+8. **Compare Operations** (0x6C-0x71): Set flags based on comparison
+9. **Register-Indirect Load** (0x72-0x74): Load from address in register
+10. **System Calls** (0x7F): Delegated to InstructionUnit for I/O and OS services
 
 ## Interface
 
@@ -63,9 +117,13 @@ The CPU uses range-based dispatch to route opcodes to specialized handlers:
 
 ```cpp
 class Cpu {
-    // Construction
-    Cpu(VMemUnit& vmem_unit, addr32_t stack_capacity, addr32_t code_capacity);
+    // Construction with interface-based dependency injection
+    Cpu(std::shared_ptr<IVMemUnit> vmem_unit);
     ~Cpu();
+    
+    // Dependency injection
+    void set_stack(IStack& stack);
+    void set_instruction_unit(IInstructionUnit& instruction_unit);
     
     // Lifecycle
     void initialize();
@@ -93,6 +151,9 @@ private:
     void execute_inc_dec_operation(byte_t opcode, const std::vector<byte_t>& params);
     void execute_subroutine_operation(byte_t opcode, const std::vector<byte_t>& params);
     
+    // Note: System calls (0x7F) are delegated to InstructionUnit::system_call()
+    // which handles I/O and OS services via the BasicIO subsystem
+    
     // Register management
     std::shared_ptr<Register> get_register_by_code(byte_t code);
 };
@@ -115,22 +176,16 @@ enum register_codes {
 
 ## Usage Examples
 
-### Example 1: Basic CPU Setup and Program Execution
+### Example 1: Basic CPU Setup via VM (Recommended)
 
 ```cpp
-#include "cpu.h"
-#include "vmemunit.h"
+#include "vm.h"
 #include <vector>
 
-// Create virtual memory unit
-VMemUnit vmem_unit;
+using namespace lvm;
 
-// Create CPU with stack and code space
-// Stack: 4096 bytes, Code: 8192 bytes
-Cpu cpu(vmem_unit, 4096, 8192);
-
-// Initialize CPU state
-cpu.initialize();
+// VM handles all subsystem creation and injection
+VM vm(4096, 8192);  // 4KB stack, 8KB code
 
 // Create a simple program
 std::vector<byte_t> program = {
@@ -140,10 +195,53 @@ std::vector<byte_t> program = {
     0xFF                     // HALT
 };
 
-// Load program into code memory
-cpu.load_program(program);
+// Load program and run
+vm.load_program(program);
+vm.run();
+```
 
-// Execute program until halt
+### Example 1b: Manual CPU Construction with Dependency Injection
+
+```cpp
+#include "cpu.h"
+#include "vmemunit.h"
+#include "stack.h"
+#include "instruction_unit.h"
+
+using namespace lvm;
+
+// Create virtual memory unit
+VMemUnit vmem_unit;
+
+// Create subsystems in UNPROTECTED mode
+auto stack = std::make_unique<Stack>(vmem_unit, 4096);  // 4KB stack
+context_id_t code_ctx = vmem_unit.create_context(8192);  // 8KB code
+
+// Get stack accessor for InstructionUnit
+vmem_unit.set_mode(IVMemUnit::Mode::PROTECTED);
+auto stack_accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
+vmem_unit.set_mode(IVMemUnit::Mode::UNPROTECTED);
+
+auto flags = std::make_shared<Flags>();
+auto instruction_unit = std::make_unique<InstructionUnit>(
+    vmem_unit, code_ctx, std::move(stack_accessor), flags);
+
+// Switch to protected mode
+vmem_unit.set_mode(IVMemUnit::Mode::PROTECTED);
+
+// Create CPU with interface reference
+Cpu cpu(vmem_unit);
+
+// Inject subsystems via interfaces
+cpu.set_stack(*stack);
+cpu.set_instruction_unit(*instruction_unit);
+
+// Now ready for program execution
+std::vector<byte_t> program = {
+    0x00, 0x01, 0x34, 0x12,  // LD AX, 0x1234
+    0xFF                     // HALT
+};
+cpu.load_program(program);
 cpu.run();
 ```
 
@@ -388,7 +486,7 @@ std::shared_ptr<Register> Cpu::get_register_by_code(byte_t code) {
 
 - **Code Context**: Read-only during execution, stores program
 - **Data Context**: Read-write, stores variables and heap
-- **Stack Context**: Managed by Stack2, isolated from code/data
+- **Stack Context**: Managed by Stack, isolated from code/data
 
 ## Initialization Sequence
 
@@ -404,7 +502,7 @@ Cpu::Cpu(VMemUnit& vmem_unit, addr32_t stack_capacity, addr32_t code_capacity)
       alu(std::make_unique<Alu>(AX))
 {
     // Create stack context
-    stack = std::make_unique<Stack2>(vmem_unit_, stack_capacity);
+    stack = std::make_unique<Stack>(vmem_unit_, stack_capacity);
     
     // Create code context
     code_context_id_ = vmem_unit_.create_context(code_capacity);
@@ -422,6 +520,63 @@ Cpu::Cpu(VMemUnit& vmem_unit, addr32_t stack_capacity, addr32_t code_capacity)
 }
 ```
 
+## New Instructions
+
+### PUSHW (0x75) - Push Immediate Word
+
+Pushes a 16-bit immediate value directly onto the stack.
+
+**Opcode**: 0x75  
+**Arguments**: WORD (2 bytes, little-endian)  
+**Total Size**: 3 bytes  
+
+**Usage**:
+```cpp
+0x75, 0x34, 0x12  // PUSHW 0x1234
+```
+
+**Operation**:
+- Reads 2-byte immediate value from instruction stream
+- Pushes word onto stack (low byte first, then high byte)
+
+### PUSHB (0x76) - Push Immediate Byte
+
+Pushes an 8-bit immediate value directly onto the stack.
+
+**Opcode**: 0x76  
+**Arguments**: BYTE (1 byte)  
+**Total Size**: 2 bytes  
+
+**Usage**:
+```cpp
+0x76, 0xAA  // PUSHB 0xAA
+```
+
+**Operation**:
+- Reads 1-byte immediate value from instruction stream
+- Pushes byte onto stack
+
+**Benefits**:
+- Eliminates need to load value into register first
+- More compact code for pushing constants
+- Ideal for system call parameters and string literals
+
+## System Call Integration
+
+The CPU dispatches system call opcodes (0x7F) to the InstructionUnit, which delegates to the BasicIO subsystem. System calls enable:
+
+- Console I/O (print, read)
+- Future: File operations, network I/O, process control
+
+**System Call Execution Flow**:
+1. CPU fetches SYS opcode (0x7F) and system call number
+2. CPU delegates to InstructionUnit accessor
+3. InstructionUnit calls `system_call(syscall_number)`
+4. InstructionUnit delegates to BasicIO accessor
+5. BasicIO reads/writes stack data and performs I/O operation
+
+See `specification/SystemCalls.md` for complete system call reference.
+
 ## Error Handling
 
 Common exceptions:
@@ -431,6 +586,7 @@ Common exceptions:
 - `runtime_error("Program too large")` - Program exceeds code context size
 - `runtime_error("Stack overflow")` - Stack capacity exceeded
 - `runtime_error("Invalid jump address")` - Jump to invalid code location
+- `runtime_error("Invalid system call number")` - Unsupported system call (delegated to InstructionUnit)
 
 ## Performance Considerations
 
@@ -438,7 +594,7 @@ Common exceptions:
 - **Register Access**: O(1) direct pointer access
 - **Parameter Fetching**: O(n) where n is parameter count (typically 0-4 bytes)
 - **Memory Protection**: Context switching uses mode flags (minimal overhead)
-- **Stack Operations**: O(1) via Stack2
+- **Stack Operations**: O(1) via Stack
 
 ## Thread Safety
 

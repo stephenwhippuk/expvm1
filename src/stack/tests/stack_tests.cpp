@@ -1,227 +1,299 @@
 #include <gtest/gtest.h>
-#include "memsize.h"
 #include "stack.h"
-#include "memunit.h"
-#include "accessMode.h"
+#include "vmemunit.h"
+#include "errors.h"
+#include <stdexcept>
 
 using namespace lvm;
 
-// Stack test fixture
-class StackTest : public ::testing::Test {
+// Test fixture for new Stack tests
+class StackNewTest : public ::testing::Test {
 protected:
-    std::shared_ptr<Memory> memory;
+    std::shared_ptr<VMemUnit> vmem_unit;
     
     void SetUp() override {
-        memory = std::make_shared<Memory>(256, 256); // page_size, pages
-        memory->unprotected_mode(); // Required to create stack
-    }
-    
-    std::unique_ptr<Stack> createStack(memsize_t size = 1024) {
-        auto stack = std::make_unique<Stack>(memory, 0, 0x0000, size);
-        memory->protected_mode(); // Switch to protected mode after creating stack
-        return stack;
+        // Tests start in unprotected mode
+        vmem_unit = std::make_shared<VMemUnit>();
     }
 };
 
-// Test stack creation and initial state
-TEST_F(StackTest, StackCreation) {
-    auto stack = createStack();
-    auto accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
+// Test stack creation in unprotected mode
+TEST_F(StackNewTest, StackCreation) {
+    Stack stack(vmem_unit, 1024);
+    
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     EXPECT_TRUE(accessor->is_empty());
-    EXPECT_FALSE(accessor->is_full());
     EXPECT_EQ(accessor->get_size(), 0);
+    EXPECT_EQ(accessor->get_capacity(), 1024);
+    EXPECT_EQ(accessor->get_sp(), 0);
+    EXPECT_EQ(accessor->get_fp(), -1);
 }
 
-// Test push and pop byte operations
-TEST_F(StackTest, PushPopByte) {
-    auto stack = createStack();
-    auto accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
+// Test stack creation fails in protected mode
+TEST_F(StackNewTest, CreationInProtectedModeFails) {
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    EXPECT_THROW(Stack stack(vmem_unit, 1024), lvm::runtime_error);
+}
+
+// Test accessor creation fails in unprotected mode
+TEST_F(StackNewTest, AccessorCreationInUnprotectedModeFails) {
+    Stack stack(vmem_unit, 1024);
+    // Still in unprotected mode
+    EXPECT_THROW(stack.get_accessor(MemAccessMode::READ_WRITE), lvm::runtime_error);
+}
+
+// Test push and pop byte
+TEST_F(StackNewTest, PushPopByte) {
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
-    accessor->push(0x42);
+    accessor->push_byte(0x42);
     EXPECT_FALSE(accessor->is_empty());
-    EXPECT_EQ(accessor->peek_byte(), 0x42);
+    EXPECT_EQ(accessor->get_size(), 1);
+    EXPECT_EQ(accessor->get_sp(), 1);
     
-    byte_t value = accessor->pop();
+    byte_t value = accessor->pop_byte();
     EXPECT_EQ(value, 0x42);
     EXPECT_TRUE(accessor->is_empty());
+    EXPECT_EQ(accessor->get_sp(), 0);
 }
 
-// Test push and pop word operations
-TEST_F(StackTest, PushPopWord) {
-    auto stack = createStack();
-    auto accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
+// Test push and pop word
+TEST_F(StackNewTest, PushPopWord) {
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
-    accessor->push_word(0xABCD);
-    EXPECT_FALSE(accessor->is_empty());
-    EXPECT_EQ(accessor->peek_word(), 0xABCD);
+    accessor->push_word(0x1234);
+    EXPECT_EQ(accessor->get_size(), 2);
+    EXPECT_EQ(accessor->get_sp(), 2);
     
     word_t value = accessor->pop_word();
-    EXPECT_EQ(value, 0xABCD);
-    EXPECT_TRUE(accessor->is_empty());
+    EXPECT_EQ(value, 0x1234);
+    EXPECT_EQ(accessor->get_sp(), 0);
 }
 
-// Test multiple push/pop operations
-TEST_F(StackTest, MultiplePushPop) {
-    auto stack = createStack();
-    auto accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
+// Test multiple pushes
+TEST_F(StackNewTest, MultiplePushes) {
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
-    accessor->push(0x11);
-    accessor->push(0x22);
-    accessor->push(0x33);
+    accessor->push_byte(0x10);
+    accessor->push_byte(0x20);
+    accessor->push_byte(0x30);
     
-    EXPECT_EQ(accessor->pop(), 0x33);
-    EXPECT_EQ(accessor->pop(), 0x22);
-    EXPECT_EQ(accessor->pop(), 0x11);
-    EXPECT_TRUE(accessor->is_empty());
+    EXPECT_EQ(accessor->get_size(), 3);
+    EXPECT_EQ(accessor->pop_byte(), 0x30);
+    EXPECT_EQ(accessor->pop_byte(), 0x20);
+    EXPECT_EQ(accessor->pop_byte(), 0x10);
+}
+
+// Test stack grows upward from 0
+TEST_F(StackNewTest, GrowsUpward) {
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
+    
+    EXPECT_EQ(accessor->get_sp(), 0);
+    accessor->push_byte(0x11);
+    EXPECT_EQ(accessor->get_sp(), 1);
+    accessor->push_byte(0x22);
+    EXPECT_EQ(accessor->get_sp(), 2);
+    accessor->push_byte(0x33);
+    EXPECT_EQ(accessor->get_sp(), 3);
 }
 
 // Test peek operations
-TEST_F(StackTest, PeekOperations) {
-    auto stack = createStack();
-    auto accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
+TEST_F(StackNewTest, PeekOperations) {
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
-    accessor->push(0x42);
-    EXPECT_EQ(accessor->peek_byte(), 0x42);
-    EXPECT_EQ(accessor->peek_byte(), 0x42); // Should still be 0x42
+    accessor->push_byte(0xAA);
+    accessor->push_byte(0xBB);
     
-    accessor->pop();
-    
-    accessor->push_word(0x1234);
-    EXPECT_EQ(accessor->peek_word(), 0x1234);
-    EXPECT_EQ(accessor->peek_word(), 0x1234); // Should still be 0x1234
+    EXPECT_EQ(accessor->peek_byte(), 0xBB);
+    EXPECT_EQ(accessor->get_size(), 2);  // Peek doesn't change size
 }
 
-// Test stack underflow
-TEST_F(StackTest, StackUnderflow) {
-    auto stack = createStack();
-    auto accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
+// Test peek from base (absolute addressing from 0)
+TEST_F(StackNewTest, PeekFromBase) {
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
-    EXPECT_THROW(accessor->pop(), std::runtime_error);
-}
-
-// Test stack overflow
-TEST_F(StackTest, StackOverflow) {
-    auto stack = createStack(10); // Small stack
-    auto accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
+    accessor->push_byte(0x11);  // Address 0
+    accessor->push_byte(0x22);  // Address 1
+    accessor->push_byte(0x33);  // Address 2
     
-    // Fill the stack
-    for (int i = 0; i < 10; i++) {
-        accessor->push(static_cast<byte_t>(i));
-    }
-    
-    EXPECT_TRUE(accessor->is_full());
-    EXPECT_THROW(accessor->push(0xFF), std::runtime_error);
-}
-
-// Test frame pointer operations
-TEST_F(StackTest, FramePointerOperations) {
-    auto stack = createStack();
-    auto accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
-    
-    // Push some data
-    accessor->push_word(0x1111);
-    accessor->push_word(0x2222);
-    
-    // Set frame to top
-    accessor->set_frame_to_top();
-    
-    // Push more data
-    accessor->push_word(0x3333);
-    
-    // Frame register should point to where we set it
-    addr_t frame_addr = accessor->get_frame_register();
-    EXPECT_GT(frame_addr, 0);
-}
-
-// Test peek from base pointer
-TEST_F(StackTest, PeekFromBase) {
-    auto stack = createStack();
-    auto accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
-    
-    // Push some values onto the stack
-    accessor->push(0x11); // First push - goes to highest address
-    accessor->push(0x22); // Second push
-    accessor->push(0x33); // Third push - at stack top (lowest address of the three)
-    
-    // BP points to base (highest address = stack_size - 1)
-    // Offset 0 from BP should give us the first pushed value (0x11)
-    // Offset 1 from BP should give us the second pushed value (0x22)
-    // Offset 2 from BP should give us the third pushed value (0x33)
     EXPECT_EQ(accessor->peek_byte_from_base(0), 0x11);
     EXPECT_EQ(accessor->peek_byte_from_base(1), 0x22);
     EXPECT_EQ(accessor->peek_byte_from_base(2), 0x33);
 }
 
-// Test peek word from base pointer
-TEST_F(StackTest, PeekWordFromBase) {
-    auto stack = createStack();
-    auto accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
+// Test frame pointer sits at -1 relative to frame
+TEST_F(StackNewTest, FramePointerBehavior) {
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
-    // Push some words onto the stack
-    accessor->push_word(0xABCD); // First word (word index 0)
-    accessor->push_word(0x1234); // Second word (word index 1)
+    // Push some values
+    accessor->push_byte(0x10);  // Address 0
+    accessor->push_byte(0x20);  // Address 1
+    accessor->push_byte(0x30);  // Address 2
     
-    // Offset N accesses the Nth word from the base
-    // Offset 0 from BP should give us the first word (0xABCD)
-    // Offset 1 from BP should give us the second word (0x1234)
-    EXPECT_EQ(accessor->peek_word_from_base(0), 0xABCD);
-    EXPECT_EQ(accessor->peek_word_from_base(1), 0x1234);
+    // Set frame pointer
+    accessor->set_frame_pointer(1);  // FP sits at address 1
+    EXPECT_EQ(accessor->get_fp(), 1);
+    
+    // Frame offset 0 accesses where FP points (address 1 = 0x20)
+    EXPECT_EQ(accessor->peek_byte_from_frame(0), 0x20);
 }
 
-// Test read-only accessor mode
-TEST_F(StackTest, ReadOnlyAccessor) {
-    auto stack = createStack();
-    auto rw_accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
+// Test set frame to top
+TEST_F(StackNewTest, SetFrameToTop) {
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
-    // Push some data with read-write accessor
-    rw_accessor->push(0x42);
-    rw_accessor->push_word(0xABCD);
+    accessor->push_byte(0x10);
+    accessor->push_byte(0x20);
+    accessor->push_byte(0x30);
+    // SP now at 3
     
-    // Get a read-only accessor
-    auto ro_accessor = stack->get_accessor(MemAccessMode::READ_ONLY);
+    accessor->set_frame_to_top();
+    // FP should be at SP-1 = 2
+    EXPECT_EQ(accessor->get_fp(), 2);
     
-    // Read operations should work
-    EXPECT_EQ(ro_accessor->peek_word(), 0xABCD);
-    EXPECT_FALSE(ro_accessor->is_empty());
+    // Frame offset 0 accesses where FP points (address 2 = 0x30)
+    EXPECT_EQ(accessor->peek_byte_from_frame(0), 0x30);
     
-    // Write operations should throw
-    EXPECT_THROW(ro_accessor->pop(), std::runtime_error);
-    EXPECT_THROW(ro_accessor->push(0xFF), std::runtime_error);
-    EXPECT_THROW(ro_accessor->push_word(0xFFFF), std::runtime_error);
-    EXPECT_THROW(ro_accessor->pop_word(), std::runtime_error);
+    // Now push more values above the frame
+    accessor->push_byte(0x40);  // Address 3 (frame offset 1)
+    accessor->push_byte(0x50);  // Address 4 (frame offset 2)
+    
+    // Frame offset 1 and 2 access pushed values
+    EXPECT_EQ(accessor->peek_byte_from_frame(1), 0x40);
+    EXPECT_EQ(accessor->peek_byte_from_frame(2), 0x50);
 }
 
-// Test flush operation
-TEST_F(StackTest, FlushOperation) {
-    auto stack = createStack();
-    auto accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
+// Test overflow detection
+TEST_F(StackNewTest, OverflowDetection) {
+    Stack stack(vmem_unit, 10);  // Small capacity
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
+    
+    // Fill the stack
+    for (int i = 0; i < 10; ++i) {
+        accessor->push_byte(i);
+    }
+    
+    EXPECT_TRUE(accessor->is_full());
+    EXPECT_THROW(accessor->push_byte(0xFF), lvm::runtime_error);
+}
+
+// Test underflow detection
+TEST_F(StackNewTest, UnderflowDetection) {
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
+    
+    EXPECT_TRUE(accessor->is_empty());
+    EXPECT_THROW(accessor->pop_byte(), lvm::runtime_error);
+}
+
+// Test flush - should only flush current frame, preserving data below frame pointer
+TEST_F(StackNewTest, FlushStack) {
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
     
     // Push some data
-    accessor->push(0x11);
-    accessor->push(0x22);
-    accessor->set_frame_to_top();
-    accessor->push(0x33);
-    accessor->push(0x44);
+    accessor->push_byte(0x11);
+    accessor->push_byte(0x22);
+    accessor->push_byte(0x33);
+    accessor->push_byte(0x44);
     
-    // Flush should clear items after frame
+    // Set frame pointer at position 1 (protecting 0x11 and 0x22 below it)
+    accessor->set_frame_pointer(1);
+    
+    // Push more data in the new frame
+    accessor->push_byte(0x55);
+    accessor->push_byte(0x66);
+    
+    EXPECT_EQ(accessor->get_sp(), 6);
+    EXPECT_EQ(accessor->get_fp(), 1);
+    
+    // Flush should only clear the current frame
     accessor->flush();
     
-    // Stack should be at frame pointer
-    EXPECT_TRUE(accessor->is_empty());
+    EXPECT_TRUE(accessor->is_empty());  // Empty relative to current frame
+    EXPECT_EQ(accessor->get_sp(), 2);   // SP moves back to fp_ + 1
+    EXPECT_EQ(accessor->get_fp(), 1);   // FP unchanged
+    
+    // Data below frame should still be accessible via peek_from_base
+    EXPECT_EQ(accessor->peek_byte_from_base(0), 0x11);
+    EXPECT_EQ(accessor->peek_byte_from_base(1), 0x22);
 }
 
-// Test mixed byte and word operations
-TEST_F(StackTest, MixedOperations) {
-    auto stack = createStack();
-    auto accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
+// Test read-only accessor
+TEST_F(StackNewTest, ReadOnlyAccessor) {
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
     
-    accessor->push(0x11);
-    accessor->push_word(0x2233);
-    accessor->push(0x44);
+    // Use read-write to set up
+    {
+        auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
+        accessor->push_byte(0xAA);
+        accessor->push_byte(0xBB);
+    }
     
-    EXPECT_EQ(accessor->pop(), 0x44);
-    EXPECT_EQ(accessor->pop_word(), 0x2233);
-    EXPECT_EQ(accessor->pop(), 0x11);
-    EXPECT_TRUE(accessor->is_empty());
+    // Use read-only accessor
+    auto ro_accessor = stack.get_accessor(MemAccessMode::READ_ONLY);
+    
+    // Reading should work
+    EXPECT_EQ(ro_accessor->peek_byte(), 0xBB);
+    EXPECT_EQ(ro_accessor->peek_byte_from_base(0), 0xAA);
+    
+    // Writing should fail
+    EXPECT_THROW(ro_accessor->push_byte(0xCC), lvm::runtime_error);
+    EXPECT_THROW(ro_accessor->pop_byte(), lvm::runtime_error);
+    EXPECT_THROW(ro_accessor->flush(), lvm::runtime_error);
+}
+
+// Test word operations with little-endian
+TEST_F(StackNewTest, WordLittleEndian) {
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
+    
+    accessor->push_word(0x1234);
+    
+    // Verify little-endian storage
+    EXPECT_EQ(accessor->peek_byte_from_base(0), 0x34);  // Low byte
+    EXPECT_EQ(accessor->peek_byte_from_base(1), 0x12);  // High byte
+}
+
+// Test peek word from frame
+TEST_F(StackNewTest, PeekWordFromFrame) {
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
+    
+    accessor->push_word(0xAAAA);  // Addresses 0-1
+    accessor->push_word(0xBBBB);  // Addresses 2-3
+    
+    accessor->set_frame_pointer(1);  // FP at 1
+    
+    // Frame offset 0 accesses where FP points (address 1)
+    // This reads addresses 1-2 which contains high byte of 0xAAAA and low byte of 0xBBBB
+    // Since stack is little-endian: address 1=0xAA, address 2=0xBB -> word 0xBBAA
+    accessor->push_word(0xCCCC);  // Addresses 4-5
+    
+    // Frame offset 3 accesses address 4-5
+    EXPECT_EQ(accessor->peek_word_from_frame(3), 0xCCCC);
 }

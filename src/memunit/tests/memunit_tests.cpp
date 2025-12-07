@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "vmemunit.h"
 #include "context.h"
+#include "paged_memory_accessor.h"
 #include "vaddr.h"
 #include "errors.h"
 #include <stdexcept>
@@ -15,41 +16,48 @@ protected:
 
 // Test initial state
 TEST_F(VMemUnitTest, InitialState) {
-    EXPECT_EQ(memunit.get_mode(), VMemUnit::Mode::UNPROTECTED);
+    EXPECT_EQ(memunit.get_mode(), IVMemUnit::Mode::UNPROTECTED);
     EXPECT_TRUE(memunit.is_unprotected());
     EXPECT_FALSE(memunit.is_protected());
 }
 
 // Test mode switching
 TEST_F(VMemUnitTest, ModeSwitch) {
-    memunit.set_mode(VMemUnit::Mode::PROTECTED);
-    EXPECT_EQ(memunit.get_mode(), VMemUnit::Mode::PROTECTED);
+    memunit.set_mode(IVMemUnit::Mode::PROTECTED);
+    EXPECT_EQ(memunit.get_mode(), IVMemUnit::Mode::PROTECTED);
     EXPECT_TRUE(memunit.is_protected());
     EXPECT_FALSE(memunit.is_unprotected());
     
-    memunit.set_mode(VMemUnit::Mode::UNPROTECTED);
-    EXPECT_EQ(memunit.get_mode(), VMemUnit::Mode::UNPROTECTED);
+    memunit.set_mode(IVMemUnit::Mode::UNPROTECTED);
+    EXPECT_EQ(memunit.get_mode(), IVMemUnit::Mode::UNPROTECTED);
 }
 
-// Test context creation in unprotected mode
+// Test context creation in unprotected mode (integration test using accessor)
 TEST_F(VMemUnitTest, CreateContextUnprotected) {
     context_id_t id = memunit.create_context(1024);
     EXPECT_EQ(id, 0);
     
-    const Context* ctx = memunit.get_context(id);
+    auto ctx = memunit.get_context(id);
     ASSERT_NE(ctx, nullptr);
-    EXPECT_EQ(ctx->get_id(), 0);
-    EXPECT_EQ(ctx->get_base_address(), 0);
-    EXPECT_EQ(ctx->get_size(), 1024);
+    
+    // Verify context works by creating an accessor in PROTECTED mode
+    memunit.set_mode(IVMemUnit::Mode::PROTECTED);
+    auto accessor = ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
+    ASSERT_NE(accessor, nullptr);
+    
+    // Write and read through accessor to verify context is properly initialized
+    accessor->set_page(0);
+    accessor->write_byte(0, 0x42);
+    EXPECT_EQ(accessor->read_byte(0), 0x42);
 }
 
 // Test context creation fails in protected mode
 TEST_F(VMemUnitTest, CreateContextProtectedFails) {
-    memunit.set_mode(VMemUnit::Mode::PROTECTED);
+    memunit.set_mode(IVMemUnit::Mode::PROTECTED);
     EXPECT_THROW(memunit.create_context(1024), std::runtime_error);
 }
 
-// Test creating multiple contexts
+// Test creating multiple contexts (integration test using accessors)
 TEST_F(VMemUnitTest, CreateMultipleContexts) {
     context_id_t id1 = memunit.create_context(1024);
     context_id_t id2 = memunit.create_context(2048);
@@ -59,18 +67,32 @@ TEST_F(VMemUnitTest, CreateMultipleContexts) {
     EXPECT_EQ(id2, 1);
     EXPECT_EQ(id3, 2);
     
-    const Context* ctx1 = memunit.get_context(id1);
-    const Context* ctx2 = memunit.get_context(id2);
-    const Context* ctx3 = memunit.get_context(id3);
+    auto ctx1 = memunit.get_context(id1);
+    auto ctx2 = memunit.get_context(id2);
+    auto ctx3 = memunit.get_context(id3);
     
     ASSERT_NE(ctx1, nullptr);
     ASSERT_NE(ctx2, nullptr);
     ASSERT_NE(ctx3, nullptr);
     
-    // Contexts should be allocated contiguously in virtual space
-    EXPECT_EQ(ctx1->get_base_address(), 0);
-    EXPECT_EQ(ctx2->get_base_address(), 1024);
-    EXPECT_EQ(ctx3->get_base_address(), 1024 + 2048);
+    // Verify contexts are independent by writing different values through accessors
+    memunit.set_mode(IVMemUnit::Mode::PROTECTED);
+    
+    auto acc1 = ctx1->create_paged_accessor(MemAccessMode::READ_WRITE);
+    auto acc2 = ctx2->create_paged_accessor(MemAccessMode::READ_WRITE);
+    auto acc3 = ctx3->create_paged_accessor(MemAccessMode::READ_WRITE);
+    
+    acc1->set_page(0);
+    acc2->set_page(0);
+    acc3->set_page(0);
+    
+    acc1->write_byte(10, 0xAA);
+    acc2->write_byte(10, 0xBB);
+    acc3->write_byte(10, 0xCC);
+    
+    EXPECT_EQ(acc1->read_byte(10), 0xAA);
+    EXPECT_EQ(acc2->read_byte(10), 0xBB);
+    EXPECT_EQ(acc3->read_byte(10), 0xCC);
 }
 
 // Test destroying context
@@ -85,7 +107,7 @@ TEST_F(VMemUnitTest, DestroyContext) {
 // Test destroying context fails in protected mode
 TEST_F(VMemUnitTest, DestroyContextProtectedFails) {
     context_id_t id = memunit.create_context(1024);
-    memunit.set_mode(VMemUnit::Mode::PROTECTED);
+    memunit.set_mode(IVMemUnit::Mode::PROTECTED);
     
     EXPECT_THROW(memunit.destroy_context(id), std::runtime_error);
 }
@@ -105,55 +127,78 @@ TEST_F(VMemUnitTest, CreateContextZeroSize) {
     EXPECT_THROW(memunit.create_context(0), std::invalid_argument);
 }
 
-// Test finding context for address
+// Test finding context for address (integration test using accessors)
 TEST_F(VMemUnitTest, FindContextForAddress) {
     context_id_t id1 = memunit.create_context(1000);
     context_id_t id2 = memunit.create_context(2000);
     
-    // Address in first context
-    const Context* ctx = memunit.find_context_for_address(500);
-    ASSERT_NE(ctx, nullptr);
-    EXPECT_EQ(ctx->get_id(), id1);
+    // Write unique values to each context so we can identify them
+    memunit.set_mode(IVMemUnit::Mode::PROTECTED);
     
-    // Address in second context
+    auto ctx1 = memunit.get_context(id1);
+    auto ctx2 = memunit.get_context(id2);
+    
+    auto acc1 = ctx1->create_paged_accessor(MemAccessMode::READ_WRITE);
+    auto acc2 = ctx2->create_paged_accessor(MemAccessMode::READ_WRITE);
+    
+    acc1->set_page(0);
+    acc2->set_page(0);
+    
+    acc1->write_byte(0, 0x11);
+    acc2->write_byte(0, 0x22);
+    
+    // Find context for address in first context and verify by reading through accessor
+    auto ctx = memunit.find_context_for_address(500);
+    ASSERT_NE(ctx, nullptr);
+    auto test_acc = ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
+    test_acc->set_page(0);
+    EXPECT_EQ(test_acc->read_byte(0), 0x11);
+    
+    // Find context for address in second context
     ctx = memunit.find_context_for_address(1500);
     ASSERT_NE(ctx, nullptr);
-    EXPECT_EQ(ctx->get_id(), id2);
+    test_acc = ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
+    test_acc->set_page(0);
+    EXPECT_EQ(test_acc->read_byte(0), 0x22);
     
     // Address outside any context
     ctx = memunit.find_context_for_address(10000);
     EXPECT_EQ(ctx, nullptr);
 }
 
-// Test Context class directly
-TEST(ContextTest, Creation) {
-    Context ctx(1, 0x1000, 0x2000);
-    EXPECT_EQ(ctx.get_id(), 1);
-    EXPECT_EQ(ctx.get_base_address(), 0x1000);
-    EXPECT_EQ(ctx.get_size(), 0x2000);
-    EXPECT_EQ(ctx.get_end_address(), 0x3000);
-}
-
-TEST(ContextTest, Contains) {
-    Context ctx(0, 0x1000, 0x1000);
+// Integration tests for Context behavior through accessors
+TEST_F(VMemUnitTest, ContextCreationAndAccess) {
+    // Create context and verify it's usable through accessors
+    context_id_t id = memunit.create_context(0x2000);
+    auto ctx = memunit.get_context(id);
+    ASSERT_NE(ctx, nullptr);
     
-    EXPECT_TRUE(ctx.contains(0x1000));  // Start
-    EXPECT_TRUE(ctx.contains(0x1500));  // Middle
-    EXPECT_TRUE(ctx.contains(0x1FFF));  // Just before end
-    EXPECT_FALSE(ctx.contains(0x2000)); // End (exclusive)
-    EXPECT_FALSE(ctx.contains(0x0FFF)); // Before start
+    memunit.set_mode(IVMemUnit::Mode::PROTECTED);
+    auto accessor = ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
+    
+    // Test writing across page boundary
+    accessor->set_page(0);
+    accessor->write_word(250, 0x1234);
+    EXPECT_EQ(accessor->read_word(250), 0x1234);
 }
 
-TEST(ContextTest, InvalidAddress) {
-    // Address exceeding 40-bit space
-    vaddr_t invalid_addr = (1ULL << 40);
-    EXPECT_THROW(Context(0, invalid_addr, 1024), std::invalid_argument);
-}
-
-TEST(ContextTest, Overflow) {
-    // Context that would overflow 40-bit space
-    vaddr_t near_limit = VADDR_MASK - 100;
-    EXPECT_THROW(Context(0, near_limit, 200), std::invalid_argument);
+TEST_F(VMemUnitTest, ContextBoundaryValidation) {
+    // Create a small context to test boundary checking
+    context_id_t id = memunit.create_context(256);
+    auto ctx = memunit.get_context(id);
+    
+    memunit.set_mode(IVMemUnit::Mode::PROTECTED);
+    auto accessor = ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
+    
+    accessor->set_page(0);
+    // Write at valid offset
+    accessor->write_byte(255, 0xFF);
+    EXPECT_EQ(accessor->read_byte(255), 0xFF);
+    
+    // Attempting to access beyond context size should fail
+    // (PagedMemoryAccessor validates against context size)
+    accessor->set_page(1);
+    EXPECT_THROW(accessor->write_byte(0, 0x00), std::runtime_error);
 }
 
 // Test vaddr validation

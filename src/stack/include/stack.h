@@ -1,85 +1,115 @@
-/* the stack is ,ike the machine stack sharing system memory though the 
-Memory Accessor interface. It works downwards from a high address to a low address.
-
+/* Stack: A managed stack that operates in its own address space via StackAccessor
+ * - Grows upward from address 0
+ * - Frame pointer (FP) acts as a movable bottom, preserving everything below it
+ * - FP sits at -1 relative to the frame (first position is FP+1)
+ * - Stack pointer (SP) points to the next free position
+ * - Fixed capacity allocated at creation
  */
 
-#pragma once    
+#pragma once
 #include "memsize.h"
-#include "mem_access.h"
+#include "accessMode.h"
+#include "vaddr.h"
+#include "vmemunit.h"
+#include "stack_accessor.h"
+#include "istack.h"
 #include <memory>
-#include "register.h"
-namespace lvm{
+
+namespace lvm {
 
     class Stack; // Forward declaration
 
-    class Stack_Accessor{
+    class StackAccessor {
     public:
-        ~Stack_Accessor();
+        ~StackAccessor() = default;
+        
         // READ Access Methods
-        byte_t peek_byte() const;
-        word_t peek_word() const;
-        byte_t peek_byte_from_base(page_offset_t offset) const;
-        word_t peek_word_from_base(page_offset_t offset) const;
-        byte_t peek_byte_from_frame(page_offset_t offset) const;
-        word_t peek_word_from_frame(page_offset_t offset) const;
+        byte_t peek_byte() const;           // Peek at top of stack
+        word_t peek_word() const;           // Peek word at top of stack
+        byte_t peek_byte_from_base(addr32_t offset) const;   // Read from base + offset
+        word_t peek_word_from_base(addr32_t offset) const;   // Read word from base + offset
+        byte_t peek_byte_from_frame(addr32_t offset) const;  // Read from frame + offset
+        word_t peek_word_from_frame(addr32_t offset) const;  // Read word from frame + offset
+        
+        // Stack state queries
         bool is_empty() const;
         bool is_full() const;
-        memsize_t get_size() const;
-        addr_t get_frame_register() const;
+        addr32_t get_size() const;          // Current number of items on stack
+        addr32_t get_capacity() const;      // Maximum capacity
+        addr32_t get_sp() const;            // Get stack pointer
+        int32_t get_fp() const;             // Get frame pointer
 
         // READ/WRITE Access Methods
-        void push(byte_t value);
-        byte_t pop();
+        void push_byte(byte_t value);
+        byte_t pop_byte();
         void push_word(word_t value);
         word_t pop_word();
-        addr_t get_top() const ;
-        void set_frame_register(word_t value);
-        void set_frame_to_top();
-        void flush();
+        
+        // Frame management
+        void set_frame_pointer(int32_t value);
+        void set_frame_to_top();            // Set FP to current SP position
+        
+        // Stack management
+        void flush();                       // Reset stack to empty state
+
     private:
         friend class Stack;
-        Stack_Accessor(Stack* stack, MemAccessMode access_mode);
+        StackAccessor(Stack* stack, MemAccessMode access_mode);
         Stack* stack_ref;
         MemAccessMode mode;
     };
-    class Stack{
-        public:
-            // the stack uses a MemoryAccessor to manage its memory
-            // therefore can only be created in uprotected mode
-            Stack(std::shared_ptr<Memory> memory, page_t page, addr_t base_address, memsize_t size);
-            ~Stack();
-           
-            std::unique_ptr<Stack_Accessor> get_accessor(MemAccessMode mode);
-        private:
-            friend class Stack_Accessor;
-            // unique ptr to memory accessor so memory is released when stack is destroyed
-            std::unique_ptr<MemoryAccessor> mem_accessor;
-            memsize_t stack_size;
-            addr_t sp; // Stack pointer     
-            std::shared_ptr<Register> FP; // frame pointer register
-            std::shared_ptr<Register> BP; // base pointer register
-            addr_t bottom_address; // base address of the stack in memory
-            addr_t top_address;
-             void push(byte_t value);
-            byte_t pop();
-            byte_t peek() const;
-            void push_word(word_t value);
-            word_t pop_word();
-            word_t peek_word() const;
 
-            byte_t peek_byte_from_base(page_offset_t offset) const;
-            word_t peek_word_from_base(page_offset_t offset) const;
+    class Stack : public IStack {
+    public:
+        // Creates a stack with its own context in the virtual memory unit
+        // - Only allowed in UNPROTECTED mode
+        // - Allocates a dedicated context with specified capacity
+        Stack(std::shared_ptr<IVMemUnit> vmem_unit, addr32_t capacity);
+        ~Stack() = default;
+        
+        // Delete copy operations
+        Stack(const Stack&) = delete;
+        Stack& operator=(const Stack&) = delete;
+        
+        // Allow move operations
+        Stack(Stack&&) = default;
+        Stack& operator=(Stack&&) = default;
+        
+        // IStack interface implementation
+        std::unique_ptr<StackAccessor> get_accessor(MemAccessMode mode) override;
+        addr32_t get_sp() const override { return sp_; }
+        int32_t get_fp() const override { return fp_; }
+        addr32_t get_capacity() const override { return capacity_; }
 
-            byte_t peek_byte_from_frame(page_offset_t offset) const;
-            word_t peek_word_from_frame(page_offset_t offset) const;
+    private:
+        friend class StackAccessor;
 
-            bool is_empty() const  ;
-            bool is_full() const;
-            memsize_t get_size() const;
-            void flush();
-            addr_t get_top() const { return sp; }
-            void set_frame_to_top();
-            void set_frame_register(word_t value);
-            addr_t get_frame_register() const;
+        std::shared_ptr<IVMemUnit> vmem_unit_;
+        context_id_t context_id_;
+        addr32_t capacity_;     // Maximum capacity in bytes
+        addr32_t sp_;           // Stack pointer (points to next free position)
+        int32_t fp_;            // Frame pointer (movable bottom, sits at -1 relative to frame)
+        
+        // Internal operations (called by Stack_Accessor)
+        void push_byte(byte_t value);
+        byte_t pop_byte();
+        byte_t peek_byte() const;
+        void push_word(word_t value);
+        word_t pop_word();
+        word_t peek_word() const;
+        
+        byte_t peek_byte_from_base(addr32_t offset) const;
+        word_t peek_word_from_base(addr32_t offset) const;
+        byte_t peek_byte_from_frame(addr32_t offset) const;
+        word_t peek_word_from_frame(addr32_t offset) const;
+        
+        bool is_empty() const;
+        bool is_full() const;
+        addr32_t get_size() const { return sp_; }
+        
+        void set_frame_pointer(int32_t value);
+        void set_frame_to_top();
+        void flush();
     };
-}
+
+} // namespace lvm
