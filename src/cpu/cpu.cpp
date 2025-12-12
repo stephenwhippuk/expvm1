@@ -102,10 +102,9 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
         std::vector<byte_t> params;
         int param_count = get_additional_bytes(opcode);
         for (int i = 0; i < param_count; ++i) {
-            params.push_back(static_cast<byte_t>(accessor->readByte_At_IR() + 1 + i));
+            params.push_back(static_cast<byte_t>(accessor->readByte_At_IR()));
             accessor->advance_IR(1);
         }
-        accessor->advance_IR(1); // Move past opcode
 
         if(opcode >= OPCODE_LD_REG_IMM_W && opcode <= OPCODE_STAL_ADDR_REG_B) {
             execute_memory_operation(opcode, params);
@@ -118,6 +117,12 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
             return;
         }
 
+        // Immediate push operations
+        if(opcode == OPCODE_PUSHW_IMM_W || opcode == OPCODE_PUSHB_IMM_B) {
+            execute_memory_operation(opcode, params);
+            return;
+        }
+
         if(opcode >= OPCODE_PUSH_REG_W && opcode <= OPCODE_SETF_ADDR) {
             execute_memory_operation(opcode, params);
             return;
@@ -125,6 +130,12 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
 
         if(opcode >= OPCODE_INC_REG && opcode <= OPCODE_DEC_REG) {
             execute_inc_dec_operation(opcode, params);
+            return;
+        }
+        
+        // System call
+        if(opcode == OPCODE_SYS_FUNC) {
+            execute_system_operation(opcode, params);
             return;
         }
 
@@ -424,7 +435,8 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
             // stack operations
 
             case OPCODE_PUSHW_IMM_W: {
-                word_t value = combine_bytes_to_address(params[0], params[1]);
+                // params are in little-endian order: low byte first, high byte second
+                word_t value = combine_bytes_to_address(params[1], params[0]);
                 stack_access->push_word(value);
                 break;
             }
@@ -544,7 +556,8 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
         switch(opcode) {
             case OPCODE_SYS_FUNC:
                 {
-                    word_t syscall_number = combine_bytes_to_word(params[0], params[1]);
+                    // params are in little-endian order: low byte first, high byte second
+                    word_t syscall_number = combine_bytes_to_word(params[1], params[0]);
                     accessor->system_call(syscall_number);  
                     break;
                 }

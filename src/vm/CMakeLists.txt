@@ -3,6 +3,7 @@
 
 add_library(lvm_vm STATIC
     vm.cpp
+    binary_loader.cpp
 )
 
 target_include_directories(lvm_vm PUBLIC
@@ -16,3 +17,8 @@ target_link_libraries(lvm_vm PUBLIC
     lvm_cpu
     lvm_memunit
 )
+
+# Add tests subdirectory
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
