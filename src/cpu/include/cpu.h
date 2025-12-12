@@ -32,6 +32,9 @@ namespace lvm {
         void set_stack(std::shared_ptr<IStack> stack);
         void set_instruction_unit(std::shared_ptr<IInstructionUnit> instruction_unit);
         
+        // Access to shared flags
+        std::shared_ptr<Flags> get_flags() const { return flags; }
+        
         void initialize();
         void load_program(const std::vector<byte_t>& program);
         void run();
@@ -42,9 +45,13 @@ namespace lvm {
         context_id_t code_context_id_;
         context_id_t data_context_id_;
         bool halted = false;
+        
+        // Flags must be declared before registers since registers depend on it
+        std::shared_ptr<Flags> flags;
+        
         void step();
         // Additional CPU state (registers, flags, etc.) would go here
-        // Gneeral purpose regsisters
+        // General purpose registers
         std::shared_ptr<Register> AX;
         std::shared_ptr<Register> BX;
         std::shared_ptr<Register> CX;
@@ -52,7 +59,6 @@ namespace lvm {
         std::shared_ptr<Register> EX;
 
         std::unique_ptr<Alu> alu_;
-        std::shared_ptr<Flags> flags;
 
 
         std::shared_ptr<Register> get_register_by_code(byte_t code);
