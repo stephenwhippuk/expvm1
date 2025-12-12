@@ -43,6 +43,7 @@ add_subdirectory(src/instruction_unit)
 add_subdirectory(src/basic_io)
 add_subdirectory(src/cpu)
 add_subdirectory(src/vm)
+add_subdirectory(src/assembler)
 
 # =============================================================================
 # Executables
@@ -56,6 +57,25 @@ target_link_libraries(lvm PRIVATE
     lvm_cpu
     lvm_memunit
 )
+
+# Binary creation tools
+add_executable(create_binary tools/create_binary.cpp)
+target_link_libraries(create_binary PRIVATE lvm_helpers)
+
+add_executable(create_binary_with_data tools/create_binary_with_data.cpp)
+target_link_libraries(create_binary_with_data PRIVATE lvm_helpers)
+
+add_executable(create_hello_world tools/create_hello_world.cpp)
+target_link_libraries(create_hello_world PRIVATE lvm_helpers)
+
+# Parser test tool
+add_executable(test_parser tools/test_parser.cpp)
+target_link_libraries(test_parser PRIVATE lvm_assembler)
+
+# Assembler tool
+add_executable(asm tools/asm.cpp)
+target_link_libraries(asm PRIVATE lvm_assembler)
+target_include_directories(asm PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # =============================================================================
 # Legacy Test Support (Optional - can be removed once all tests are modular)

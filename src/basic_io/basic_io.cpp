@@ -15,7 +15,7 @@ BasicIO::~BasicIO() = default;
 // TODO: Implement methods
 
 void BasicIO::write_string_from_stack() {
-    auto accessor = stack->get_accessor(MemAccessMode::READ_ONLY);
+    auto accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
     uint16_t count = accessor->pop_word();
     std::string output;
     for (uint16_t i = 0; i < count; ++i) {
@@ -27,7 +27,7 @@ void BasicIO::write_string_from_stack() {
 }
 
 void BasicIO::write_line_from_stack() {
-    auto accessor = stack->get_accessor(MemAccessMode::READ_ONLY);
+    auto accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
     uint16_t count = accessor->pop_word();
     std::string output;
     for (uint16_t i = 0; i < count; ++i) {

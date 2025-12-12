@@ -10,7 +10,7 @@
 namespace lvm {
     class vm{
     public:
-        vm(addr32_t stack_capacity, addr32_t code_capacity);
+        vm(addr32_t stack_capacity, addr32_t code_capacity, addr32_t data_capacity);
         ~vm();
         void load_program(char* fileName, addr_t load_address);
         void run();
@@ -22,5 +22,6 @@ namespace lvm {
         std::shared_ptr<Cpu> cpu_instance;
         std::shared_ptr<Flags> flags;
         context_id_t code_context_id_;
+        context_id_t data_context_id_;
     };
 }

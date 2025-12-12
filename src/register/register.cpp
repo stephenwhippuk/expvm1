@@ -7,7 +7,11 @@ Register::Register() :
     flags(*(new Flags())), 
     flags_provided(false) {}
     
-Register::Register(std::shared_ptr<Flags> flags_ptr) : flags(*flags_ptr), value(0), flags_provided(true)  {}
+Register::Register(std::shared_ptr<Flags> flags_ptr) : flags(*flags_ptr), value(0), flags_provided(true)  {
+    if (!flags_ptr) {
+        throw std::runtime_error("Register constructor received null flags pointer");
+    }
+}
 
 Register::Register(const Register& other) 
     : flags(other.flags), value(other.value), flags_provided(other.flags_provided) {}

@@ -93,3 +93,10 @@ void InstructionUnit_Accessor::return_from_subroutine() {
     instruction_unit_ref->return_from_subroutine();
 }
 
+void InstructionUnit_Accessor::system_call(word_t syscall_number) {
+    if (mode != MemAccessMode::READ_WRITE) {
+        throw lvm::runtime_error("Attempt to execute system call in READ_ONLY mode");
+    }
+    instruction_unit_ref->system_call(syscall_number);
+}
+

@@ -1,0 +1,63 @@
+- The job of the assembler is to read the op codes and work out which instructions it refers to
+- An assembler program is split into DATA and CODE Sections, these symbols are reserved 
+- addresses are usually defined using labels XXXX: (can be any length) 
+- operations in Brackets represent offsets i.e. LDA AX, (HELLO + CX) means load data from the address referred to by HELLO offset by the value in CX
+    only one dynamic term is allowed in the offset but we can have fixed values that the assembler can calculate e.g. (HELLO + 1 + CX)
+    the assmembler knows the address of Hello, so it can calculate this + 1, CX cannot be avaluated so it dynamic
+- The DB instruction can be used to conveninently define blocks in the data segment. 
+    Strings can be defined using "" or '' symbols for exmaple 
+        HELLO: DB "Hello World\n"
+    Arrays can be defined using 
+        ARRAY: DB [2, 3, 5 ,6 ,7]
+    WOrd arrays can be defined using DW so
+        ARRAY DW [1, 2, 4, 5, 635534]
+    As makes sense the label is a pointer to the first byte, spaces are optional  
+- these can be defined in DATA SEGMENT or they can be defined inline but the assembler should just add to the data segment in the binary failed
+    so
+        DATA
+            HELLO: DB "HEllo WOrld\n"
+        CODE
+            LDA AX, HELLO
+
+    is the same as 
+        CODE
+            LDA AX, DB "Hello World\n"
+    these anonymous strings take up memory but cannot be accessed outside of the location they are referred in... only 1 copy exists 
+    so if used in a sub routine for example its effectively a local static variable
+- we can also use [] as shorthand for offsets
+
+        DATA
+            HELLO: DB "HEllo WOrld\n"
+        CODE
+            LDA AX, HELLO[1]
+
+        gets the second byte of HELLO (zero-indexed, so [0] is first byte, [1] is second)
+        its also possible to use registers here e.g., 
+            LDA AX, HELLO[CX]
+        
+        The [] notation is purely syntactic sugar - HELLO[CX] is translated to (HELLO + CX) by the assembler
+        Both forms are valid, but [] is more readable for array-style access that whilst () can have caluclations, only a seingle term should be present in [] blocks
+
+
+- HEX values are prefixed by 0x, otherwise values are taken as decimal and the assembler to map to the approprate hex values and thus byte pattern
+- ; is a comment
+
+an example hello world program
+
+
+CODE
+    LDA DX, DB "Hello World" ; inline anonymous memory block (11 characters)
+    LD CX, 0xB ; start CX at 11 (string length, for zero-indexed access use length-1)
+LOOP:
+    CMP CX, 0 ; compares against zero which sets the Z flag if true
+    JPZ PRINT ; exit LOOP if zero flag is set
+    DEC CX ; decrease the counter first (so we access [10], [9], ..., [0])
+    LDA AX, DX[CX] ; load byte at DX+CX into AX
+    PUSH AX ; push next byte to the stack
+    JMP LOOP ; next loop iteration
+PRINT:
+    PUSHW 0x000B ; push length of the string as a word (11 characters)
+    SYS 0x0011 ; system call 0x0011: print with new line
+    HALT ; stop execution
+
+
