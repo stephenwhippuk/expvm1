@@ -7,6 +7,6 @@ byte1: DB [0x42]
 word1: DW [0x1234]
 
 CODE
-    LD AX, [byte1]
-    LD BX, [word1]
+    LDA AX, byte1
+    LDA BX, word1
     HALT

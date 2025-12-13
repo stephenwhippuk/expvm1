@@ -19,6 +19,6 @@ start:
     JMP start
     
     LD AX, 42
-    LD BX, [value]
+    LDA BX, value
     ADD AX, BX
     HALT

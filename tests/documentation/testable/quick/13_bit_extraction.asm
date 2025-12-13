@@ -10,8 +10,8 @@ DATA
     extracted: DW [0]
 
 CODE
-    LD AX, [value]
+    LDA AX, value
     SHR AX, 4
     AND AX, 0x000F
-    LD [extracted], AX
+    LDA extracted, AX
     HALT

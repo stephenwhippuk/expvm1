@@ -47,7 +47,7 @@ DATA
     
 CODE
     ; Comments can appear anywhere
-    LD AX, [value]    ; Load the value
+    LDA AX, value     ; Load the value from memory
     HALT              ; And stop
 ```
 
@@ -252,7 +252,7 @@ CODE
     JMP start           ; One operand (label)
     
     LD AX, 42           ; Two operands (register, immediate)
-    LD BX, [value]      ; Two operands (register, memory)
+    LDA BX, value       ; Two operands (register, memory)
     ADD AX, BX          ; Two operands (register, register)
 ```
 
@@ -293,7 +293,7 @@ CODE
     LD AX, 100          ; Accumulator
     LD BX, 200          ; Base
     LD CX, 10           ; Counter
-    LD DX, [buffer]     ; Data
+    LD DX, buffer       ; Data (address of buffer)
     LD EX, 0x1000       ; Extended
 ```
 
@@ -312,9 +312,9 @@ CODE
 - Must use correct register for instruction (some instructions require specific registers)
 - Sub-registers access high/low bytes of parent register
 
-#### 3. Memory Addresses (Labels)
+#### 3. Memory Addresses and Labels
 
-Reference to a data label or code label.
+Reference to a data label or code label. The syntax varies by instruction and context.
 
 ```assembly
 DATA
@@ -323,68 +323,115 @@ buffer: DB [10, 20, 30]
 
 CODE
 start:
-    LD AX, [value]      ; Load from data label
-    LDA AX, buffer      ; Load address of label
+    ; Address operations (LD instruction)
+    LD AX, value        ; Load ADDRESS of value into AX
+    LD BX, (buffer + 2) ; Compute address (buffer + 2)
+    
+    ; Memory access operations (LDA instruction)
+    LDA AX, value       ; Load VALUE from memory at value
+    LDA CX, (buffer + 2) ; Load VALUE from computed address
+    
+    ; Syntactic sugar - array indexing
+    LDA DX, buffer[2]   ; Sugar for: LDA DX, (buffer + 2)
+    
+    ; Jump/Call targets
     JMP start           ; Jump to code label
     CALL function       ; Call code label
 ```
 
-**Syntax:**
-- **Direct memory access**: `[label]` - reads/writes memory at label's address
-- **Address loading**: `label` or without brackets (context-dependent)
-- **Jump/Call targets**: Just the label name
+**Instruction-Specific Syntax:**
 
-#### 4. Expressions
+**LD Instruction** (Load Address):
+- `LD reg, label` - Load address of label into register
+- `LD reg, (expression)` - Compute and load address
+- `LD reg, label[index]` - Sugar syntax (converted to LDA/LDAB based on register size)
 
-Arithmetic expressions for address calculations.
+**LDA/LDAB/LDAW Instructions** (Memory Access):
+- `LDA reg, label` - Load value FROM memory at label
+- `LDA reg, (expression)` - Load value FROM computed address
+- `LDA label, reg` - Store value TO memory at label
+- `LDA (expression), reg` - Store value TO computed address
+
+**Jump/Call Instructions:**
+- Just the label name: `JMP label`, `CALL label`
+
+**Square Brackets [] - Syntactic Sugar Only:**
+- `label[expr]` is syntactic sugar that converts to memory access
+- Examples: 
+  - `LD AX, buffer[5]` → becomes → `LDA AX, (buffer + 5)` (16-bit register)
+  - `LD AL, buffer[5]` → becomes → `LDAB AL, (buffer + 5)` (8-bit register)
+- **Do not use** `[label]` or `[expression]` directly - use appropriate syntax above
+
+#### 4. Address Expressions
+
+Arithmetic expressions for address calculations, enclosed in parentheses.
 
 ```assembly
 DATA
 array: DB [1, 2, 3, 4, 5]
 
 CODE
-    LD AX, [array + 2]      ; Access third element (array[2])
-    LDA BX, array + 4       ; Address of fifth element
-    LD CX, [array + AX]     ; Dynamic index using register
+    ; Address expressions with parentheses
+    LDA AX, (array + 2)      ; Load from array[2]
+    LDA BX, (array + CX)     ; Dynamic index using register
+    LDAB DL, (array + BX + 1) ; Complex expression
+    
+    ; Address loading
+    LD CX, (array + 4)       ; Compute address of array[4]
+    LD DX, array             ; Load base address
 ```
 
 **Expression Components:**
-- **Labels**: Base address
+- **Labels**: Base address (required first element)
 - **Literals**: Numeric offsets
-- **Registers**: Dynamic offsets (CX, DX, etc.)
+- **Registers**: Dynamic offsets (BX, CX, DX, etc.)
 - **Operators**: `+` (addition), `-` (subtraction)
 
 **Expression Rules:**
-1. **Label First**: Expression must start with a label
-2. **Addition/Subtraction**: Only `+` and `-` operators supported
-3. **No Multiplication**: No `*`, `/`, or other operators
-4. **Register Offsets**: Can add a register value to compute address
-5. **Evaluation**: Expressions evaluated at assembly time (except register parts)
+1. **Parentheses Required**: Use `(expression)` for address arithmetic
+2. **Label First**: Expression must start with a label
+3. **Operators**: Only `+` and `-` supported
+4. **No Multiplication**: No `*`, `/`, or other operators
+5. **Register Offsets**: Can add register values for dynamic addressing
+6. **Evaluation**: Label + literal resolved at assembly time; register parts at runtime
 
-**Examples:**
+**Array Indexing Patterns:**
 ```assembly
 CODE
-    LD AX, [buffer + 0]        ; First element
-    LD BX, [buffer + 10]       ; Eleventh element
-    LD CX, 5
-    LD DX, [buffer + CX]       ; Dynamic indexing
-    LDA AX, table + 100        ; Address arithmetic
+    ; Byte array access with parentheses
+    LDAB AL, (bytes + 0)       ; First byte
+    LDAB AL, (bytes + BX)      ; Dynamic byte index
+    
+    ; Word array access (2 bytes apart)
+    LDA AX, words              ; First word
+    LDA BX, (words + 2)        ; Second word  
+    LDA CX, (words + DX)       ; Dynamic word index
+    
+    ; Sugar syntax (recommended for readability with register indices)
+    LD AX, bytes[BX]           ; Becomes: LDA AX, (bytes + BX)
+    LD BX, words[CX]           ; Becomes: LDA BX, (words + CX)
+    LD DL, bytes[BX]           ; Becomes: LDAB DL, (bytes + BX)
+    
+    ; Sugar syntax works with any expression
+    LD AX, array[BX + 1]       ; Becomes: LDA AX, (array + BX + 1)
+    LD AL, buffer[CX]          ; Becomes: LDAB AL, (buffer + CX)
 ```
 
 #### 5. Indirect Addressing
 
-Memory access through register-calculated addresses (instruction-specific).
+Memory access through a register containing an address.
 
 ```assembly
 CODE
-    LD AX, (BX)         ; Load from address in BX
-    LD (CX), AX         ; Store to address in CX
+    LD BX, buffer       ; BX = address of buffer
+    LDAB AL, BX         ; Load byte from address in BX
+    LDA CX, DX          ; Load word from address in DX
 ```
 
 **Rules:**
-- Parentheses `()` indicate indirect addressing
-- Not all instructions support indirect addressing
-- Register contains the address, not the value
+- Register contains the address to access
+- No parentheses needed for basic indirect addressing
+- Use with LDA/LDAB/LDAW instructions for memory operations
 
 ## Numeric Literals
 
@@ -460,8 +507,8 @@ CODE
 
 3. **Around Operators**: Spaces around `+` and `-` in expressions
    ```assembly
-   LD AX, [buffer+5]   ; Valid
-   LD AX, [buffer + 5] ; Valid
+   LDA AX, (buffer+5)   ; Valid
+   LDA AX, (buffer + 5) ; Valid
    ```
 
 ### Blank Lines
@@ -501,13 +548,14 @@ DATA
 CODE
     ; Initialize
 start:
-    LDA AX, text        ; AX = address of string
+    LD AX, text         ; AX = address of string
     LD BX, 0            ; BX = counter (starts at 0)
     
     ; Count loop
 count_loop:
-    LD CL, (AX)         ; Load byte from address in AX
-    CMP CL, [null_byte] ; Compare with null
+    LDAB CL, AX         ; Load byte from address in AX
+    LDAB DL, null_byte  ; Load null byte value
+    CMP CL, DL          ; Compare with null
     JPZ done            ; If zero, done
     
     INC BX              ; Increment counter
@@ -516,7 +564,7 @@ count_loop:
     
     ; Store result and halt
 done:
-    LD [length], BX     ; Store length
+    LDA length, BX      ; Store length
     HALT                ; End program
 ```
 
@@ -681,7 +729,7 @@ CODE
     LD    AX, 100
     LD    BX, 200
     ADD   AX, BX
-    LD    [result], AX
+    LDA   result, AX
 ```
 
 ## See Also

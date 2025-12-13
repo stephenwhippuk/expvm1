@@ -7,5 +7,5 @@ DATA
     value123: DW [42]
 
 CODE
-    LD AX, [value123]
+    LDA AX, value123
     HALT

@@ -9,6 +9,6 @@ DATA
 
 CODE
 initialize_game:
-    LD AX, [player_score]
-    LD BX, [enemy_count]
+    LDA AX, player_score
+    LDA BX, enemy_count
     HALT

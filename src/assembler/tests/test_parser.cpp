@@ -180,7 +180,7 @@ TEST(ParserTest, InstructionWithMemoryAccess) {
     ASSERT_NE(instr, nullptr);
     EXPECT_EQ(instr->mnemonic(), "LDA");
     ASSERT_EQ(instr->operands().size(), 1);
-    EXPECT_EQ(instr->operands()[0]->type(), OperandNode::Type::MEMORY_DIRECT);
+    EXPECT_EQ(instr->operands()[0]->type(), OperandNode::Type::MEMORY_ACCESS);
 }
 
 TEST(ParserTest, ComplexExpression) {

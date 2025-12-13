@@ -12,6 +12,7 @@ set(ASSEMBLER_SOURCES
     parser/parser.cpp
     semantic/symbol_table.cpp
     semantic/semantic_analyzer.cpp
+    semantic/instruction_rewriter.cpp
     ir/code_graph.cpp
     ir/code_graph_builder.cpp
     codegen/address_resolver.cpp

@@ -9,13 +9,13 @@ DATA
 
 CODE
 main:
-    LD AX, [value]
+    LDA AX, value
     LD BX, 5                ; BX used by main
     
     CALL multiply_by_three
     
     ; BX still contains 5
-    LD [result], AX
+    LDA result, AX
     HALT
 
 ; Function: multiply_by_three

@@ -56,6 +56,12 @@ void BasicIO::read_line_onto_stack() {
     accessor->push_word(count);
 }
 
+void BasicIO::debug_print_word() {
+    auto accessor = stack->get_accessor(MemAccessMode::READ_WRITE);
+    word_t value = accessor->pop_word();
+    std::cout << value << std::endl;
+}
+
 std::unique_ptr<BasicIOAccessor> BasicIO::get_accessor() {
     return std::unique_ptr<BasicIOAccessor>(new BasicIOAccessor(*this));
 }
@@ -77,4 +83,8 @@ void BasicIOAccessor::write_line_from_stack() {
 
 void BasicIOAccessor::read_line_onto_stack() {
     basic_io_ref.read_line_onto_stack();
+}
+
+void BasicIOAccessor::debug_print_word() {
+    basic_io_ref.debug_print_word();
 }   

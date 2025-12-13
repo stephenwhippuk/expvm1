@@ -344,21 +344,29 @@ namespace assembler {
             return operand;
         }
         
-        // Memory access: [expression] or (expression)
-        if (check(TokenType::LEFT_BRACKET) || check(TokenType::LEFT_PAREN)) {
-            bool is_bracket = check(TokenType::LEFT_BRACKET);
+        // Parentheses: (expression) - address computation
+        if (check(TokenType::LEFT_PAREN)) {
             size_t line = current_.line, col = current_.column;
             advance();
             
             auto expr = parse_expression();
+            consume(TokenType::RIGHT_PAREN, "Expected ')'");
             
-            if (is_bracket) {
-                consume(TokenType::RIGHT_BRACKET, "Expected ']'");
-            } else {
-                consume(TokenType::RIGHT_PAREN, "Expected ')'");
-            }
+            auto operand = std::make_unique<OperandNode>(OperandNode::Type::ADDRESS_EXPR);
+            operand->set_expression(std::move(expr));
+            operand->set_location(line, col);
+            return operand;
+        }
+        
+        // Square brackets: [expression] - memory dereference
+        if (check(TokenType::LEFT_BRACKET)) {
+            size_t line = current_.line, col = current_.column;
+            advance();
             
-            auto operand = std::make_unique<OperandNode>(OperandNode::Type::MEMORY_DIRECT);
+            auto expr = parse_expression();
+            consume(TokenType::RIGHT_BRACKET, "Expected ']'");
+            
+            auto operand = std::make_unique<OperandNode>(OperandNode::Type::MEMORY_ACCESS);
             operand->set_expression(std::move(expr));
             operand->set_location(line, col);
             return operand;
@@ -376,15 +384,44 @@ namespace assembler {
             return operand;
         }
         
-        // Identifier (label reference)
+        // Identifier - may be followed by [expr] for sugar syntax
         if (check(TokenType::IDENTIFIER)) {
+            std::string identifier = current_.lexeme;
+            size_t line = current_.line, col = current_.column;
+            advance();
+            
+            // Check for sugar syntax: label[expr]
+            if (check(TokenType::LEFT_BRACKET)) {
+                advance();  // consume [
+                auto index_expr = parse_expression();
+                consume(TokenType::RIGHT_BRACKET, "Expected ']'");
+                
+                // Create label + index expression
+                auto label_expr = std::make_unique<ExpressionNode>(ExpressionNode::Type::IDENTIFIER);
+                label_expr->set_identifier(identifier);
+                label_expr->set_location(line, col);
+                
+                auto combined = std::make_unique<ExpressionNode>(ExpressionNode::Type::BINARY_OP);
+                combined->set_operator('+');
+                combined->set_left(std::move(label_expr));
+                combined->set_right(std::move(index_expr));
+                combined->set_location(line, col);
+                
+                // Mark as memory access with sugar syntax
+                auto operand = std::make_unique<OperandNode>(OperandNode::Type::MEMORY_ACCESS);
+                operand->set_expression(std::move(combined));
+                operand->set_sugar_syntax(true);
+                operand->set_location(line, col);
+                return operand;
+            }
+            
+            // Plain identifier
             auto operand = std::make_unique<OperandNode>(OperandNode::Type::IDENTIFIER);
             auto expr = std::make_unique<ExpressionNode>(ExpressionNode::Type::IDENTIFIER);
-            expr->set_identifier(current_.lexeme);
-            expr->set_location(current_.line, current_.column);
+            expr->set_identifier(identifier);
+            expr->set_location(line, col);
             operand->set_expression(std::move(expr));
-            operand->set_location(current_.line, current_.column);
-            advance();
+            operand->set_location(line, col);
             return operand;
         }
         

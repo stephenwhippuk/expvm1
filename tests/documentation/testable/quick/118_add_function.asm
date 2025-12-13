@@ -11,14 +11,14 @@ DATA
 CODE
 main:
     ; Load parameters
-    LD AX, [num1]           ; First parameter
-    LD BX, [num2]           ; Second parameter
+    LDA AX, num1           ; First parameter
+    LDA BX, num2           ; Second parameter
     
     ; Call add function
     CALL add_numbers
     
     ; Store result
-    LD [sum], AX            ; sum = 42
+    LDA sum, AX            ; sum = 42
     HALT
 
 ; Function: add_numbers

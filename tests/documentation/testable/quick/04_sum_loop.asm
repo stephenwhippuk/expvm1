@@ -17,5 +17,5 @@ sum_loop:
     DEC CX
     JPNZ sum_loop
     
-    LD [sum], AX
+    LDA sum, AX
     HALT

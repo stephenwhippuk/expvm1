@@ -82,13 +82,27 @@ namespace assembler {
     }
 
     void SemanticAnalyzer::visit(InstructionNode& node) {
+        // Validate bracket syntax based on instruction semantics
+        std::string mnemonic = node.mnemonic();
+        std::transform(mnemonic.begin(), mnemonic.end(), mnemonic.begin(), ::toupper);
+        
         // Validate operands
-        for (auto& operand : node.operands()) {
+        for (size_t i = 0; i < node.operands().size(); ++i) {
+            auto& operand = node.operands()[i];
+            
+            // Check for bracket syntax violations
+            if (mnemonic == "LD" && operand->type() == OperandNode::Type::MEMORY_ACCESS) {
+                // LD with [expr] is only valid for sugar syntax (label[index])
+                // which should be rewritten to LDA
+                if (!operand->is_sugar_syntax()) {
+                    error("LD instruction cannot use square brackets []. "
+                          "Use LDA for memory access, or use parentheses () for address expressions.",
+                          operand->line(), operand->column());
+                }
+            }
+            
             operand->accept(*this);
         }
-        
-        // Instruction-specific validation could go here
-        // For now, we just validate that operands are well-formed
     }
 
     void SemanticAnalyzer::visit(OperandNode& node) {

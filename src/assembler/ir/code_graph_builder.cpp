@@ -73,6 +73,9 @@ namespace assembler {
         // Get opcode for instruction
         uint8_t opcode = get_opcode_for_instruction(node.mnemonic());
         
+        // Store current instruction mnemonic for operand processing
+        current_instruction_mnemonic_ = node.mnemonic();
+        
         // Create instruction node
         auto instr = std::make_unique<CodeInstructionNode>(node.mnemonic(), opcode);
         
@@ -89,13 +92,22 @@ namespace assembler {
     void CodeGraphBuilder::visit(OperandNode& node) {
         switch (node.type()) {
             case OperandNode::Type::IMMEDIATE:
-                // Determine if byte or word based on value
-                if (node.expression()->number() <= 0xFF) {
+                // Determine if byte or word based on instruction semantics, not value
+                if (instruction_expects_word_immediate(current_instruction_mnemonic_)) {
+                    current_operand_.type = InstructionOperand::Type::IMMEDIATE_WORD;
+                    current_operand_.immediate_value = static_cast<uint16_t>(node.expression()->number());
+                } else if (instruction_expects_byte_immediate(current_instruction_mnemonic_)) {
                     current_operand_.type = InstructionOperand::Type::IMMEDIATE_BYTE;
                     current_operand_.immediate_value = static_cast<uint16_t>(node.expression()->number());
                 } else {
-                    current_operand_.type = InstructionOperand::Type::IMMEDIATE_WORD;
-                    current_operand_.immediate_value = static_cast<uint16_t>(node.expression()->number());
+                    // Fallback to value-based determination for ambiguous cases
+                    if (node.expression()->number() <= 0xFF) {
+                        current_operand_.type = InstructionOperand::Type::IMMEDIATE_BYTE;
+                        current_operand_.immediate_value = static_cast<uint16_t>(node.expression()->number());
+                    } else {
+                        current_operand_.type = InstructionOperand::Type::IMMEDIATE_WORD;
+                        current_operand_.immediate_value = static_cast<uint16_t>(node.expression()->number());
+                    }
                 }
                 break;
                 
@@ -110,8 +122,14 @@ namespace assembler {
                 current_operand_.symbol_name = node.expression()->identifier();
                 break;
                 
-            case OperandNode::Type::MEMORY_DIRECT:
-                // Memory access with expression
+            case OperandNode::Type::ADDRESS_EXPR:
+                // Parentheses: (expression) - address computation
+                current_operand_.type = InstructionOperand::Type::EXPRESSION;
+                node.expression()->accept(*this);
+                break;
+                
+            case OperandNode::Type::MEMORY_ACCESS:
+                // Square brackets: [expression] - memory dereference
                 current_operand_.type = InstructionOperand::Type::EXPRESSION;
                 node.expression()->accept(*this);
                 break;
@@ -370,6 +388,55 @@ namespace assembler {
         // For unknown instructions, return 0x00 (NOP)
         // In production, this should log a warning or error
         return 0x00;
+    }
+
+    bool CodeGraphBuilder::instruction_expects_word_immediate(const std::string& mnemonic) const {
+        std::string upper = mnemonic;
+        std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+        
+        // Instructions that always take word immediates
+        return (upper == "LD" ||      // LD reg, immediate16
+                upper == "PUSHW" ||   // PUSHW immediate16
+                upper == "SYS" ||     // SYS immediate16
+                upper == "SYSCALL" ||
+                upper == "ADD" ||     // ADD AX, immediate16
+                upper == "SUB" ||     // SUB AX, immediate16
+                upper == "MUL" ||     // MUL AX, immediate16
+                upper == "DIV" ||     // DIV AX, immediate16
+                upper == "REM" ||     // REM AX, immediate16
+                upper == "AND" ||     // AND AX, immediate16
+                upper == "OR" ||      // OR AX, immediate16
+                upper == "XOR" ||     // XOR AX, immediate16
+                upper == "NOT" ||     // NOT immediate16
+                upper == "SHL" ||     // SHL AX, immediate16
+                upper == "SHR" ||     // SHR AX, immediate16
+                upper == "ROL" ||     // ROL AX, immediate16
+                upper == "ROR" ||     // ROR AX, immediate16
+                upper == "CMP" ||     // CMP reg, immediate16
+                upper == "PAGE");     // PAGE immediate16
+    }
+
+    bool CodeGraphBuilder::instruction_expects_byte_immediate(const std::string& mnemonic) const {
+        std::string upper = mnemonic;
+        std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+        
+        // Instructions that always take byte immediates
+        return (upper == "LDH" ||     // LDH reg, immediate8
+                upper == "LDL" ||     // LDL reg, immediate8
+                upper == "PUSHB" ||   // PUSHB immediate8
+                upper == "ADB" ||     // ADB AX, immediate8
+                upper == "SBB" ||     // SBB AX, immediate8
+                upper == "MLB" ||     // MLB AX, immediate8
+                upper == "DVB" ||     // DVB AX, immediate8
+                upper == "RMB" ||     // RMB AX, immediate8
+                upper == "ANB" ||     // ANB AL, immediate8
+                upper == "ORB" ||     // ORB AL, immediate8
+                upper == "XOB" ||     // XOB AL, immediate8
+                upper == "NOTB" ||    // NOTB immediate8
+                upper == "SLB" ||     // SLB AX, immediate8
+                upper == "SHRB" ||    // SHRB AX, immediate8
+                upper == "ROLB" ||    // ROLB AX, immediate8
+                upper == "RORB");     // RORB AX, immediate8
     }
 
 } // namespace assembler

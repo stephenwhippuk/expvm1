@@ -8,7 +8,7 @@ DATA
     extracted: DW [0]
 
 CODE
-    LD AX, [value]          ; AX = 0xABCD
+    LDA AX, value          ; AX = 0xABCD
     
     ; Shift right 4 bits
     SHR AX, 4               ; AX = 0x0ABC
@@ -16,5 +16,5 @@ CODE
     ; Mask to keep only lower 4 bits
     AND AX, 0x000F          ; AX = 0x000C
     
-    LD [extracted], AX      ; extracted = 0x000C
+    LDA extracted, AX      ; extracted = 0x000C
     HALT

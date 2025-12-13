@@ -12,15 +12,15 @@ DATA
 
 CODE
     LD AX, 0
-    LD CX, [count]
+    LDA CX, count
     LD BX, 0
 
 sum_array_loop:
-    LDAB DX, [array + BX]
+    LDAB DX, (array + BX)
     ADD AX, DX
     INC BX
     DEC CX
     JPNZ sum_array_loop
     
-    LD [sum], AX
+    LDA sum, AX
     HALT

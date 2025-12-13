@@ -7,10 +7,10 @@ DATA
     value: DW [0x1234]
 
 CODE
-    LD AX, [value]      ; Load word from 'value'
+    LDA AX, value      ; Load word from 'value'
     LD BX, 0x5678
-    LD [value], BX      ; Store BX to 'value'
+    LDA value, BX      ; Store BX to 'value'
     
-    LDA CX, value       ; Load address of 'value' into CX
-    LD DX, (CX)         ; Load word from address in CX
+    LD CX, value       ; Load address of 'value' into CX
+    LDA DX, CX         ; Load word from address in CX
     HALT

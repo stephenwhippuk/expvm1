@@ -7,5 +7,5 @@ DATA
     array: DB [1, 2, 3]
 
 CODE
-    LD AX, [array]
+    LDA AX, array
     HALT

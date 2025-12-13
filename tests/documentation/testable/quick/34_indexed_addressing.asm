@@ -9,7 +9,7 @@ DATA
     array: DW [100, 200, 300, 400, 500]
 
 CODE
-    LD AX, [array + 0]
-    LD BX, [array + 2]
-    LD CX, [array + 4]
+    LDA AX, array
+    LDA BX, (array + 2)
+    LDA CX, (array + 4)
     HALT

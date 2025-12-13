@@ -16,7 +16,7 @@ DATA
 
 CODE
     ; Access fields
-    LD AX, [person_age + 0]         ; Load age (word at offset 0)
-    LDAB BX, [person_age + 2]       ; Load initial (byte at offset 2)
-    LDAB CX, [person_age + 3]       ; Load grade (byte at offset 3)
+    LDA AX, person_age              ; Load age (word at offset 0)
+    LDAB BX, (person_age + 2)       ; Load initial (byte at offset 2)
+    LDAB CX, (person_age + 3)       ; Load grade (byte at offset 3)
     HALT

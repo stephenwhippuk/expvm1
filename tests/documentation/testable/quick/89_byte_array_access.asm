@@ -7,7 +7,7 @@ DATA
     bytes: DB [10, 20, 30, 40, 50]
 
 CODE
-    LDAB AL, [bytes + 0]        ; First element
-    LDAB AL, [bytes + 1]        ; Second element
-    LDAB AL, [bytes + 2]        ; Third element
+    LDAB AL, bytes        ; First element
+    LDAB AL, (bytes + 1)        ; Second element
+    LDAB AL, (bytes + 2)        ; Third element
     HALT

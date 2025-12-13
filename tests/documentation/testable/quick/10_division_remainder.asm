@@ -12,12 +12,12 @@ DATA
     remainder: DW [0]
 
 CODE
-    LD AX, [dividend]
-    DIV AX, [divisor]
-    LD [quotient], AX
+    LDA AX, dividend
+    DIV AX, divisor
+    LDA quotient, AX
     
-    LD AX, [dividend]
-    REM AX, [divisor]
-    LD [remainder], AX
+    LDA AX, dividend
+    REM AX, divisor
+    LDA remainder, AX
     
     HALT

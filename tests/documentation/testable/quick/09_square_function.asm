@@ -11,9 +11,9 @@ DATA
 
 CODE
 main:
-    LD AX, [input]
+    LDA AX, input
     CALL square
-    LD [result], AX
+    LDA result, AX
     HALT
 
 square:

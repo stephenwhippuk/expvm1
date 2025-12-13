@@ -6,5 +6,5 @@ DATA
 value: DW [0x1234]
 
 CODE
-    LD AX, [value]
+    LDA AX, value
     HALT

@@ -72,6 +72,7 @@ namespace assembler {
         bool in_data_section_;
         bool in_code_section_;
         InstructionOperand current_operand_;
+        std::string current_instruction_mnemonic_;  // Track current instruction
         
         // Anonymous data counter
         uint32_t anonymous_counter_;
@@ -82,6 +83,8 @@ namespace assembler {
         std::vector<uint8_t> inline_data_to_bytes(const InlineDataNode& node);
         std::vector<uint8_t> string_to_bytes(const std::string& str);
         uint8_t get_opcode_for_instruction(const std::string& mnemonic);
+        bool instruction_expects_word_immediate(const std::string& mnemonic) const;
+        bool instruction_expects_byte_immediate(const std::string& mnemonic) const;
     };
 
 } // namespace assembler

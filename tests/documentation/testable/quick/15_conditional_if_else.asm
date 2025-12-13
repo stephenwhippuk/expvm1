@@ -10,7 +10,7 @@ DATA
     status: DW [0]
 
 CODE
-    LD AX, [temperature]
+    LDA AX, temperature
     
     CMP AX, 50
     JPNZ check_hot
@@ -31,5 +31,5 @@ is_hot:
     LD BX, 2
 
 store_status:
-    LD [status], BX
+    LDA status, BX
     HALT

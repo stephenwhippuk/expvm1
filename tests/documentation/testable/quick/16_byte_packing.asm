@@ -9,12 +9,12 @@ DATA
     packed: DW [0x1234]
 
 CODE
-    LD AX, [packed]
+    LDA AX, packed
     LD BL, AH
     LD CL, AL
     
     LD DH, 0xAB
     LD DL, 0xCD
-    LD [packed], DX
+    LDA packed, DX
     
     HALT

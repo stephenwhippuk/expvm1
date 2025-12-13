@@ -13,5 +13,5 @@ CODE
     ADD AX, 5
     MUL AX, 2
     SUB AX, 3
-    LD [result], AX
+    LDA result, AX
     HALT

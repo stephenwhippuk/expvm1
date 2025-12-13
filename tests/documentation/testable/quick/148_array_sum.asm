@@ -9,9 +9,9 @@ count: DW [5]
 CODE
     LD AX, 0            ; Sum accumulator
     LD BX, array        ; Array pointer
-    LD CX, [count]      ; Counter
+    LDA CX, count      ; Counter
 loop:
-    LDAB DX, [BX]       ; Load byte from array
+    LDAB DX, BX       ; Load byte from array
     ADD AX, DX          ; Add to sum
     INC BX              ; Next element
     DEC CX              ; Decrement counter

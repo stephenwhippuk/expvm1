@@ -8,6 +8,6 @@ DATA
     val2: DW [20]
 
 CODE
-    LD AX, [val1]
+    LDA AX, val1
     ADD AX, [val2]
     HALT

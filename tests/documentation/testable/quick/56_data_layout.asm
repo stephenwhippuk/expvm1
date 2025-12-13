@@ -9,6 +9,6 @@ DATA
     array: DB [10, 20, 30]
 
 CODE
-    LD AX, [byte1]
-    LD BX, [word1]
+    LDA AX, byte1
+    LDA BX, word1
     HALT

@@ -10,6 +10,6 @@ DATA
     flags: DB [0x01, 0x02, 0x04, 0x08]
 
 CODE
-    LDAB AX, [array + 0]
-    LDAB BX, [flags + 0]
+    LDAB AX, array
+    LDAB BX, flags
     HALT

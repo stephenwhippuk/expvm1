@@ -10,13 +10,13 @@ DATA
 CODE
 main:
     ; Load input
-    LD AX, [input]
+    LDA AX, input
     
     ; Call square function
     CALL square
     
     ; Store result
-    LD [result], AX         ; result = 49
+    LDA result, AX         ; result = 49
     HALT
 
 ; Function: square

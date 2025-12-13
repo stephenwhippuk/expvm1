@@ -9,9 +9,9 @@ DATA
     size: DW [10]
 
 CODE
-    LDA BX, source              ; BX = source pointer
-    LDA DX, dest                ; DX = dest pointer
-    LD CX, [size]               ; CX = byte count
+    LD BX, source              ; BX = source pointer
+    LD DX, dest                ; DX = dest pointer
+    LDA CX, size               ; CX = byte count
 
 copy_loop:
     LDAB AX, (BX)               ; Load byte from source

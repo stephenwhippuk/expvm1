@@ -7,5 +7,5 @@ DATA
     data_value: DW [100]
 
 CODE
-    LD AX, [data_value]
+    LDA AX, data_value
     HALT

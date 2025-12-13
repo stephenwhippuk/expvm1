@@ -7,7 +7,7 @@ DATA
     words: DW [100, 200, 300, 400, 500]
 
 CODE
-    LD AX, [words + 0]          ; First element (100)
-    LD AX, [words + 2]          ; Second element (200)
-    LD AX, [words + 4]          ; Third element (300)
+    LDA AX, words          ; First element (100)
+    LDA AX, (words + 2)          ; Second element (200)
+    LDA AX, (words + 4)          ; Third element (300)
     HALT

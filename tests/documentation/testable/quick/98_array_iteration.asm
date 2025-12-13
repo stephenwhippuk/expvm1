@@ -10,15 +10,15 @@ DATA
 CODE
     ; Sum array elements
     LD AX, 0            ; AX = accumulator (sum)
-    LDA BX, array       ; BX = array base pointer
+    LD BX, array       ; BX = array base pointer
     LD CX, 5            ; CX = element count
     
 sum_loop:
-    LDAB DL, (BX)       ; Load array element into DL
+    LDAB DL, BX       ; Load array element into DL
     ADD AL, DL          ; Add to sum (byte addition)
     INC BX              ; Move to next element
     DEC CX              ; Decrement counter
     JPNZ sum_loop       ; Continue if CX != 0
     
-    LD [sum], AX        ; Store result
+    LDA sum, AX        ; Store result
     HALT

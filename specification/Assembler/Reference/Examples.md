@@ -7,15 +7,16 @@ This document provides complete, working example programs for the Pendragon asse
 ## Table of Contents
 
 1. [Hello World](#hello-world)
-2. [Basic Arithmetic](#basic-arithmetic)
-3. [Loops and Counting](#loops-and-counting)
-4. [Array Operations](#array-operations)
-5. [String Processing](#string-processing)
-6. [Subroutines and Functions](#subroutines-and-functions)
-7. [Conditional Logic](#conditional-logic)
-8. [Memory Operations](#memory-operations)
-9. [Bit Manipulation](#bit-manipulation)
-10. [Advanced: Sorting Algorithm](#advanced-sorting-algorithm)
+2. [Array Index Sugar Syntax](#array-index-sugar-syntax)
+3. [Basic Arithmetic](#basic-arithmetic)
+4. [Loops and Counting](#loops-and-counting)
+5. [Array Operations](#array-operations)
+6. [String Processing](#string-processing)
+7. [Subroutines and Functions](#subroutines-and-functions)
+8. [Conditional Logic](#conditional-logic)
+9. [Memory Operations](#memory-operations)
+10. [Bit Manipulation](#bit-manipulation)
+11. [Advanced: Sorting Algorithm](#advanced-sorting-algorithm)
 
 ---
 
@@ -42,7 +43,7 @@ DATA
 CODE
 start:
     ; Load the first character
-    LD AX, [message]
+    LDAB AX, message
     
     ; Program ends
     HALT
@@ -56,7 +57,7 @@ start:
 
 2. **CODE Section**: Simple execution flow
    - `start:` - Optional label for entry point
-   - `LD AX, [message]` - Loads first byte of message into AX
+   - `LDAB AX, message` - Loads first byte of message into AX
    - `HALT` - Stops execution
 
 ### Expected Behavior
@@ -72,9 +73,250 @@ DATA
     message: DB "Hi!"
 
 CODE
-    LDAB AL, [message + 0]    ; Load 'H'
-    LDAB BL, [message + 1]    ; Load 'i'
-    LDAB CL, [message + 2]    ; Load '!'
+    LDAB AL, (message + 0)    ; Load 'H'
+    LDAB BL, (message + 1)    ; Load 'i'
+    LDAB CL, (message + 2)    ; Load '!'
+    HALT
+```
+
+**Note**: For direct byte access from a label, the parentheses syntax `(label + offset)` is used with LDAB.
+
+---
+
+## Array Index Sugar Syntax
+
+### Learning Objectives
+- Understanding syntactic sugar for arrays
+- When to use sugar syntax vs explicit parentheses
+- Conversion rules from sugar to explicit syntax
+- Writing clearer array access code
+
+### Overview
+
+The assembler provides **syntactic sugar** for array indexing to make code more readable. The syntax `label[expression]` is automatically converted to memory access with parentheses.
+
+### Basic Examples
+
+```assembly
+; ========================================
+; Sugar Syntax Basics
+; Demonstrates array indexing conversion
+; ========================================
+
+DATA
+    bytes: DB [10, 20, 30, 40, 50]
+    words: DW [100, 200, 300, 400, 500]
+
+CODE
+    ; === REGISTER INDICES (Primary use case) ===
+    
+    LD BX, 3                  ; BX = index
+    
+    ; These two are IDENTICAL (8-bit register):
+    LD CL, bytes[BX]          ; Sugar syntax (auto-converts to LDAB)
+    LDAB CL, (bytes + BX)     ; Explicit syntax
+    
+    ; These two are IDENTICAL (16-bit register):
+    LD AX, words[BX]          ; Sugar syntax (auto-converts to LDA)
+    LDA AX, (words + BX)      ; Explicit syntax
+    
+    ; === COMPLEX EXPRESSIONS WITH REGISTERS ===
+    
+    ; These two are IDENTICAL (8-bit register):
+    LD DL, bytes[BX + 1]      ; Sugar (converts to LDAB)
+    LDAB DL, (bytes + BX + 1) ; Explicit equivalent
+    
+    ; === CONSTANT INDICES (Use explicit syntax instead) ===
+    
+    ; For constant offsets, use explicit parentheses syntax:
+    LDAB AL, (bytes + 0)      ; First byte
+    LDA AX, (words + 2)       ; Second word
+    
+    ; Don't use: bytes[0] - this creates LD which converts to LDA
+    ; The explicit syntax is clearer for constants
+    
+    HALT
+```
+
+### Conversion Rules
+
+The assembler automatically detects the register size and chooses the appropriate instruction:
+
+**For 16-bit registers** (AX, BX, CX, DX, EX):
+```assembly
+LD AX, array[index]    →    LDA AX, (array + index)
+```
+
+**For 8-bit registers** (AL, AH, BL, BH, CL, CH, DL, DH, EL, EH):
+```assembly
+LD AL, bytes[index]    →    LDAB AL, (bytes + index)
+```
+
+**Key transformations**:
+1. `LD` instruction → `LDA` (16-bit) or `LDAB` (8-bit) based on destination register
+2. Square brackets `[...]` → Parentheses `(...)`
+3. Expression inside is preserved
+4. Register size is automatically detected
+
+### When to Use Sugar Syntax
+
+✅ **Use Sugar Syntax When**:
+- Accessing array elements **with a register index**
+- Dynamic indexing (index in a register)
+- Loop-based array access
+- Code readability is enhanced by showing array indexing intent
+
+```assembly
+; Good use of sugar syntax (register indices)
+LD BX, 5
+LD AL, buffer[BX]            ; Clear: buffer[BX] (auto → LDAB AL, (buffer + BX))
+LD AX, table[CX]             ; Clear: table[CX] (auto → LDA AX, (table + CX))
+LD CL, string[DX]            ; Clear: string[DX] (auto → LDAB CL, (string + DX))
+```
+
+✅ **Use Explicit Parentheses When**:
+- Accessing with **constant offsets**
+- Doing address arithmetic (not array access)
+- Loading addresses (not values)
+- Complex pointer manipulation
+
+```assembly
+; Good use of explicit syntax
+LDAB AL, (buffer + 0)        ; Constant offset - use parentheses
+LDA AX, (table + 4)          ; Constant offset - use parentheses
+LD BX, (base + offset)       ; Computing an address
+```
+
+**Important**: Sugar syntax `label[const]` with a constant is valid but less clear than `(label + const)`. The sugar syntax shines when used with register indices.
+
+### Complete Example: Array Processing
+
+```assembly
+; ========================================
+; Array Sum with Sugar Syntax
+; Shows sugar syntax in practical use
+; ========================================
+
+DATA
+    numbers: DW [5, 10, 15, 20, 25, 30]
+    count: DW [6]
+    total: DW [0]
+
+CODE
+    LD AX, 0                 ; AX = accumulator
+    LDA CX, count            ; CX = element count
+    LD BX, 0                 ; BX = index (starts at 0)
+
+sum_loop:
+    ; Load element using sugar syntax
+    LDA DX, numbers[BX]      ; Clear: numbers[BX]
+    
+    ; Add to total
+    ADD AX, DX
+    
+    ; Move to next element (words are 2 bytes)
+    ADD BX, 2
+    DEC CX
+    JPNZ sum_loop
+    
+    ; Store result
+    LDA total, AX            ; total = 105
+    HALT
+```
+
+### Comparison: With and Without Sugar
+
+```assembly
+; ========================================
+; Side-by-Side Comparison
+; ========================================
+
+DATA
+    data: DB [1, 2, 3, 4, 5]
+
+CODE
+    ; === WITHOUT SUGAR (Explicit) ===
+    LD BX, 0
+    LDAB AL, (data + BX)     ; Load data[0]
+    INC BX
+    LDAB AL, (data + BX)     ; Load data[1]
+    INC BX
+    LDAB AL, (data + BX)     ; Load data[2]
+    
+    ; === WITH SUGAR (Clearer) ===
+    LD BX, 0
+    LD AL, data[BX]          ; Load data[0] (converts to LDAB)
+    INC BX
+    LD AL, data[BX]          ; Load data[1] (converts to LDAB)
+    INC BX
+    LD AL, data[BX]          ; Load data[2] (converts to LDAB)
+    
+    HALT
+```
+
+### Advanced: Multi-Dimensional Arrays
+
+```assembly
+; ========================================
+; 2D Array Access with Sugar Syntax
+; array[row][col] pattern
+; ========================================
+
+DATA
+    ; 3x3 matrix stored as linear array
+    matrix: DB [1, 2, 3,
+                4, 5, 6,
+                7, 8, 9]
+    width: DW [3]
+
+CODE
+    ; Access matrix[1][2] (row=1, col=2)
+    ; Offset = row * width + col = 1 * 3 + 2 = 5
+    
+    LD BX, 1                 ; row
+    LDA AX, width
+    MUL BX, AX               ; BX = row * width = 3
+    ADD BX, 2                ; BX = row * width + col = 5
+    
+    ; Now access element using sugar syntax
+    LD AL, matrix[BX]        ; Load matrix[1][2] = 6 (converts to LDAB)
+    
+    HALT
+```
+
+### Important Notes
+
+1. **Automatic Conversion**: Sugar syntax is converted during parsing, before semantic analysis
+2. **No Performance Difference**: Sugar and explicit syntax generate identical code
+3. **Register Size Detection**: `LD` with sugar automatically becomes `LDA` (16-bit) or `LDAB` (8-bit) based on destination register
+4. **Works Everywhere**: Can be used with any instruction that accepts memory operands
+5. **Automatic Instruction Selection**: You write `LD`, the assembler chooses the right instruction
+
+### Common Patterns
+
+```assembly
+DATA
+    buffer: DB [0, 0, 0, 0, 0]
+    values: DW [10, 20, 30, 40]
+
+CODE
+    ; Pattern 1: Fixed index (use explicit syntax)
+    LDAB AL, (buffer + 0)    ; First element - constant offset
+    LDAB BL, (buffer + 4)    ; Fifth element - constant offset
+    
+    ; Pattern 2: Variable index (GOOD use of sugar)
+    LD CX, 2
+    LD AX, values[CX]        ; values[CX] (converts to LDA)
+    
+    ; Pattern 3: Index with offset (GOOD use of sugar)
+    LD BX, 1
+    LD DL, buffer[BX + 1]    ; buffer[BX + 1] (converts to LDAB)
+    
+    ; Pattern 4: Storing with sugar (GOOD use)
+    LD BX, 3
+    LD AL, 0xFF
+    LD buffer[BX], AL        ; buffer[BX] = 0xFF (converts to LDAB)
+    
     HALT
 ```
 
@@ -106,7 +348,7 @@ CODE
     SUB AX, 3           ; AX = 27
     
     ; Store result
-    LD [result], AX
+    LDA result, AX
     
     HALT
 ```
@@ -136,14 +378,16 @@ DATA
 
 CODE
     ; Calculate 100 / 7
-    LD AX, [dividend]
-    DIV AX, [divisor]       ; AX = 14 (quotient)
-    LD [quotient], AX
+    LDA AX, dividend
+    LDA BX, divisor
+    DIV AX, BX              ; AX = 14 (quotient)
+    LDA quotient, AX
     
     ; Calculate 100 % 7
-    LD AX, [dividend]
-    REM AX, [divisor]       ; AX = 2 (remainder)
-    LD [remainder], AX
+    LDA AX, dividend
+    LDA BX, divisor
+    REM AX, BX              ; AX = 2 (remainder)
+    LDA remainder, AX
     
     HALT
 ```
@@ -184,7 +428,7 @@ countdown_loop:
     JPNZ countdown_loop ; Jump if CX != 0
     
     ; Loop finished, CX is now 0
-    LD [counter], CX
+    LDA counter, CX
     HALT
 ```
 
@@ -225,7 +469,7 @@ sum_loop:
     DEC CX              ; Decrement counter
     JPNZ sum_loop       ; Continue if CX != 0
     
-    LD [sum], AX        ; Store result (55)
+    LDA sum, AX         ; Store result (55)
     HALT
 ```
 
@@ -248,7 +492,7 @@ count_up_loop:
     DEC CX              ; Decrement iterations
     JPNZ count_up_loop
     
-    LD [final_count], AX ; AX = 10
+    LDA final_count, AX  ; AX = 10
     HALT
 ```
 
@@ -277,12 +521,12 @@ DATA
 
 CODE
     LD AX, 0            ; AX = sum accumulator
-    LD CX, [count]      ; CX = element count
+    LDA CX, count       ; CX = element count
     LD BX, 0            ; BX = array index
 
 sum_array_loop:
     ; Load array element
-    LDAB DX, [array + BX]
+    LDAB DX, (array + BX)
     
     ; Add to sum
     ADD AX, DX
@@ -293,7 +537,32 @@ sum_array_loop:
     JPNZ sum_array_loop
     
     ; Store result
-    LD [sum], AX        ; sum = 150
+    LDA sum, AX         ; sum = 150
+    HALT
+```
+
+**Alternative with Sugar Syntax**:
+```assembly
+; Same program using array indexing sugar syntax
+CODE
+    LD AX, 0            ; AX = sum accumulator
+    LDA CX, count       ; CX = element count
+    LD BX, 0            ; BX = array index
+
+sum_array_loop:
+    ; Load array element using sugar syntax
+    LDAB DX, array[BX]  ; Clearer: array[BX]
+    
+    ; Add to sum
+    ADD AX, DX
+    
+    ; Next element
+    INC BX
+    DEC CX
+    JPNZ sum_array_loop
+    
+    ; Store result
+    LDA sum, AX         ; sum = 150
     HALT
 ```
 
@@ -323,14 +592,14 @@ DATA
 
 CODE
     ; Initialize with first element
-    LD AX, [numbers + 0]    ; AX = current max
-    LD CX, [count]          ; CX = count
+    LDA AX, (numbers + 0)   ; AX = current max
+    LDA CX, count           ; CX = count
     DEC CX                  ; Already processed first element
     LD BX, 2                ; BX = index (words are 2 bytes)
 
 find_max_loop:
     ; Load current element
-    LD DX, [numbers + BX]
+    LDA DX, (numbers + BX)
     
     ; Compare with current max
     CMP DX, AX              ; Compare DX with AX
@@ -346,7 +615,7 @@ continue_max:
     DEC CX
     JPNZ find_max_loop
     
-    LD [maximum], AX        ; maximum = 89
+    LDA maximum, AX         ; maximum = 89
     HALT
 ```
 
@@ -364,16 +633,34 @@ DATA
     size: DW [5]
 
 CODE
-    LD CX, [size]           ; CX = element count
+    LDA CX, size            ; CX = element count
     LD BX, 0                ; BX = index
 
 copy_loop:
     ; Load from source
-    LDAB AL, [source + BX]
+    LDAB AL, (source + BX)
     
     ; Store to destination
-    ; (Note: Direct store syntax depends on instruction set)
-    ; This is conceptual - actual store may vary
+    LDAB (dest + BX), AL
+    
+    INC BX
+    DEC CX
+    JPNZ copy_loop
+    
+    HALT
+```
+
+**Alternative with Sugar Syntax**:
+```assembly
+; Array copy using sugar syntax for clarity
+CODE
+    LDA CX, size            ; CX = element count
+    LD BX, 0                ; BX = index
+
+copy_loop:
+    ; Load from source and store to destination
+    LDAB AL, source[BX]     ; Clear array indexing
+    LDAB dest[BX], AL       ; Store to dest[BX]
     
     INC BX
     DEC CX
@@ -410,7 +697,7 @@ CODE
 
 strlen_loop:
     ; Load current character
-    LDAB CL, [text + BX]
+    LDAB CL, (text + BX)
     
     ; Check for null terminator
     CMP CL, 0
@@ -422,7 +709,7 @@ strlen_loop:
     JMP strlen_loop
 
 strlen_done:
-    LD [length], AX         ; length = 13
+    LDA length, AX          ; length = 13
     HALT
 ```
 
@@ -445,14 +732,15 @@ CODE
 
 count_char_loop:
     ; Load current character
-    LDAB CL, [text + BX]
+    LDAB CL, (text + BX)
     
     ; Check for null terminator
     CMP CL, 0
     JPZ count_done
     
     ; Compare with target character
-    CPL CL, [target]
+    LDAB DL, target
+    CPL CL, DL
     JPZ is_match
     JMP next_char
 
@@ -464,7 +752,7 @@ next_char:
     JMP count_char_loop
 
 count_done:
-    LD [count], AX          ; count = 3 (three 'l's)
+    LDA count, AX           ; count = 3 (three 'l's)
     HALT
 ```
 
@@ -485,7 +773,7 @@ CODE
 
 convert_loop:
     ; Load character
-    LDAB AL, [input + BX]
+    LDAB AL, (input + BX)
     
     ; Check if null
     CMP AL, 0
@@ -536,13 +824,13 @@ DATA
 CODE
 main:
     ; Load input
-    LD AX, [input]
+    LDA AX, input
     
     ; Call square function
     CALL square
     
     ; Store result
-    LD [result], AX         ; result = 49
+    LDA result, AX          ; result = 49
     HALT
 
 ; Function: square
@@ -569,14 +857,14 @@ DATA
 CODE
 main:
     ; Load parameters
-    LD AX, [num1]           ; First parameter
-    LD BX, [num2]           ; Second parameter
+    LDA AX, num1            ; First parameter
+    LDA BX, num2            ; Second parameter
     
     ; Call add function
     CALL add_numbers
     
     ; Store result
-    LD [sum], AX            ; sum = 42
+    LDA sum, AX             ; sum = 42
     HALT
 
 ; Function: add_numbers
@@ -601,13 +889,13 @@ DATA
 
 CODE
 main:
-    LD AX, [value]
+    LDA AX, value
     LD BX, 5                ; BX used by main
     
     CALL multiply_by_three
     
     ; BX still contains 5
-    LD [result], AX
+    LDA result, AX
     HALT
 
 ; Function: multiply_by_three
@@ -653,7 +941,7 @@ DATA
     status: DW [0]          ; 0=normal, 1=cold, 2=hot
 
 CODE
-    LD AX, [temperature]
+    LDA AX, temperature
     
     ; Check if temperature < 50 (cold)
     CMP AX, 50
@@ -676,7 +964,7 @@ is_hot:
     LD BX, 2                ; Status: hot
 
 store_status:
-    LD [status], BX
+    LDA status, BX
     HALT
 ```
 
@@ -693,7 +981,7 @@ DATA
     grade: DB [0]           ; 'A'=65, 'B'=66, 'C'=67, 'D'=68, 'F'=70
 
 CODE
-    LD AX, [score]
+    LDA AX, score
     
     ; Check for A (90-100)
     CMP AX, 90
@@ -723,7 +1011,7 @@ grade_f:
     LD BL, 0x46             ; 'F'
 
 store_grade:
-    LD [grade], BL
+    LDAB grade, BL
     HALT
 ```
 
@@ -740,7 +1028,7 @@ DATA
     is_valid: DW [0]        ; 0=invalid, 1=valid
 
 CODE
-    LD AX, [value]
+    LDA AX, value
     
     ; Check if value >= 10
     CMP AX, 10
@@ -758,7 +1046,7 @@ invalid:
     LD BX, 0                ; Invalid
 
 store_result:
-    LD [is_valid], BX
+    LDA is_valid, BX
     HALT
 ```
 
@@ -786,13 +1074,13 @@ DATA
     size: DW [10]
 
 CODE
-    LD AL, [fill_value]     ; AL = value to fill
-    LD CX, [size]           ; CX = byte count
+    LDAB AL, fill_value     ; AL = value to fill
+    LDA CX, size            ; CX = byte count
     LD BX, 0                ; BX = index
 
 fill_loop:
     ; Store value at buffer[BX]
-    ; (Conceptual - actual store syntax may vary)
+    LDAB (buffer + BX), AL
     
     INC BX
     DEC CX
@@ -814,12 +1102,12 @@ DATA
 
 CODE
     ; Load both values
-    LD AX, [var1]           ; AX = 100
-    LD BX, [var2]           ; BX = 200
+    LDA AX, var1            ; AX = 100
+    LDA BX, var2            ; BX = 200
     
     ; Swap
-    LD [var1], BX           ; var1 = 200
-    LD [var2], AX           ; var2 = 100
+    LDA var1, BX            ; var1 = 200
+    LDA var2, AX            ; var2 = 100
     
     HALT
 ```
@@ -837,20 +1125,20 @@ DATA
     sum: DW [0]
 
 CODE
-    LDA BX, buffer          ; BX = pointer to buffer
-    LD CX, [count]          ; CX = element count
+    LD BX, buffer           ; BX = pointer to buffer
+    LDA CX, count           ; CX = element count
     LD AX, 0                ; AX = sum
 
 pointer_loop:
     ; Load byte from address in BX
-    LD DL, (BX)             ; Indirect addressing
+    LDAB DL, BX             ; Indirect addressing
     ADD AX, DX
     
     INC BX                  ; Move pointer
     DEC CX
     JPNZ pointer_loop
     
-    LD [sum], AX            ; sum = 55
+    LDA sum, AX             ; sum = 55
     HALT
 ```
 
@@ -875,7 +1163,7 @@ DATA
     flags: DW [0x0000]
 
 CODE
-    LD AX, [flags]
+    LDA AX, flags
     
     ; Set bit 0 (OR with 0x0001)
     OR AX, 0x0001           ; AX = 0x0001
@@ -889,7 +1177,7 @@ CODE
     ; Toggle bit 4 (XOR with 0x0010)
     XOR AX, 0x0010          ; AX = 0x0000
     
-    LD [flags], AX
+    LDA flags, AX
     HALT
 ```
 
@@ -906,17 +1194,17 @@ DATA
     div_by_two: DW [0]
 
 CODE
-    LD AX, [value]          ; AX = 16
+    LDA AX, value           ; AX = 16
     
     ; Multiply by 4 (shift left 2 bits)
     SHL AX, 2               ; AX = 64
-    LD [times_four], AX
+    LDA times_four, AX
     
-    LD AX, [value]          ; AX = 16
+    LDA AX, value           ; AX = 16
     
     ; Divide by 2 (shift right 1 bit)
     SHR AX, 1               ; AX = 8
-    LD [div_by_two], AX
+    LDA div_by_two, AX
     
     HALT
 ```
@@ -933,7 +1221,7 @@ DATA
     extracted: DW [0]
 
 CODE
-    LD AX, [value]          ; AX = 0xABCD
+    LDA AX, value           ; AX = 0xABCD
     
     ; Shift right 4 bits
     SHR AX, 4               ; AX = 0x0ABC
@@ -941,7 +1229,7 @@ CODE
     ; Mask to keep only lower 4 bits
     AND AX, 0x000F          ; AX = 0x000C
     
-    LD [extracted], AX      ; extracted = 0x000C
+    LDA extracted, AX       ; extracted = 0x000C
     HALT
 ```
 
@@ -958,17 +1246,17 @@ DATA
     rotated_right: DW [0]
 
 CODE
-    LD AX, [value]          ; AX = 0x8001
+    LDA AX, value           ; AX = 0x8001
     
     ; Rotate left 1 bit
     ROL AX, 1               ; AX = 0x0003 (bit 15 wraps to bit 0)
-    LD [rotated_left], AX
+    LDA rotated_left, AX
     
-    LD AX, [value]          ; AX = 0x8001
+    LDA AX, value           ; AX = 0x8001
     
     ; Rotate right 1 bit
     ROR AX, 1               ; AX = 0xC000 (bit 0 wraps to bit 15)
-    LD [rotated_right], AX
+    LDA rotated_right, AX
     
     HALT
 ```
@@ -996,7 +1284,7 @@ DATA
     size: DW [7]
 
 CODE
-    LD CX, [size]           ; CX = outer loop counter
+    LDA CX, size            ; CX = outer loop counter
     DEC CX                  ; n-1 passes
 
 outer_loop:
@@ -1008,12 +1296,12 @@ outer_loop:
 
 inner_loop:
     ; Load array[i]
-    LD AX, [array + BX]
+    LDA AX, (array + BX)
     
     ; Load array[i+1]
     LD DI, BX
     ADD DI, 2               ; Next word (2 bytes)
-    LD EX, [array + DI]
+    LDA EX, (array + DI)
     
     ; Compare array[i] with array[i+1]
     CMP AX, EX
@@ -1022,8 +1310,8 @@ inner_loop:
 
 swap_elements:
     ; Swap array[i] and array[i+1]
-    LD [array + BX], EX
-    LD [array + DI], AX
+    LDA (array + BX), EX
+    LDA (array + DI), AX
 
 no_swap:
     ; Move to next pair
@@ -1099,8 +1387,8 @@ DATA
 
 ```assembly
 CODE
-    LD CX, count        ; CX for counters
-    LDA BX, array       ; BX for pointers
+    LDA CX, count       ; CX for counters
+    LD BX, array        ; BX for pointers
     LD AX, 0            ; AX for accumulation
 ```
 
@@ -1159,7 +1447,7 @@ CODE
     LD CX, 3
     LD BX, 0
 loop:
-    LDAB DX, [array + BX]
+    LDAB DX, (array + BX)
     ADD AX, DX
     INC BX
     DEC CX
@@ -1177,12 +1465,12 @@ Test each part independently:
 ```assembly
 ; Test data loading first
 CODE
-    LD AX, [value]
+    LDA AX, value
     HALT
 
 ; Then add arithmetic
 CODE
-    LD AX, [value]
+    LDA AX, value
     ADD AX, 10
     HALT
 ```

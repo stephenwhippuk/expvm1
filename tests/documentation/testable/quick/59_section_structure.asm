@@ -9,6 +9,6 @@ DATA
 
 CODE
 label3:
-    LD AX, [label1]
-    LD BX, [label2]
+    LDA AX, label1
+    LDA BX, label2
     HALT

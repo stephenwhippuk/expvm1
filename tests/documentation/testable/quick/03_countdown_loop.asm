@@ -15,5 +15,5 @@ countdown_loop:
     DEC CX
     JPNZ countdown_loop
     
-    LD [counter], CX
+    LDA counter, CX
     HALT

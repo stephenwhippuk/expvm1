@@ -10,12 +10,12 @@ DATA
 
 CODE
     LD CX, 0
-    LDAB AL, [array + CX]
+    LDAB AL, (array + CX)
     
     LD CX, 3
-    LDAB AL, [array + CX]
+    LDAB AL, (array + CX)
     
     INC CX
-    LDAB AL, [array + CX]
+    LDAB AL, (array + CX)
     
     HALT

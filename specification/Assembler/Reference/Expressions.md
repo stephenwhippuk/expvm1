@@ -22,9 +22,9 @@ DATA
     buffer: DB [0, 0, 0, 0, 0]
 
 CODE
-    LD AX, [buffer]         ; Direct label reference
-    LD BX, [buffer + 2]     ; Label + offset
-    LDA CX, buffer + 4      ; Address calculation
+    LDA AX, buffer          ; Direct label reference
+    LDA BX, (buffer + 2)    ; Label + offset
+    LD CX, (buffer + 4)     ; Address calculation
 ```
 
 ## Addressing Modes
@@ -87,7 +87,7 @@ CODE
 
 Access memory using a compile-time known address.
 
-**Syntax**: `instruction operand, [address]` or `[label]`
+**Syntax**: `LDA operand, label` or `LDA operand, (expression)`
 
 **Examples**:
 ```assembly
@@ -96,9 +96,9 @@ DATA
     byte_val: DB [0x42]
 
 CODE
-    LD AX, [value]          ; Load word from address
-    LDAB BX, [byte_val]     ; Load byte from address
-    LD [value], CX          ; Store word to address
+    LDA AX, value           ; Load word from address
+    LDAB BX, byte_val       ; Load byte from address
+    LDA value, CX           ; Store word to address
 ```
 
 **Characteristics**:
@@ -125,10 +125,10 @@ DATA
     array: DB [10, 20, 30, 40, 50]
 
 CODE
-    LDA BX, array           ; BX = address of array
-    LD AL, (BX)             ; Load byte from address in BX
+    LD BX, array            ; BX = address of array
+    LDAB AL, BX             ; Load byte from address in BX
     INC BX                  ; Move to next element
-    LD AL, (BX)             ; Load next byte
+    LDAB AL, BX             ; Load next byte
 ```
 
 **Characteristics**:
@@ -149,7 +149,7 @@ CODE
 
 Combine label with offset for array element access.
 
-**Syntax**: `instruction operand, [label + offset]`
+**Syntax**: `LDA operand, (label + offset)` or sugar syntax `LDA operand, label[offset]`
 
 **Examples**:
 ```assembly
@@ -157,9 +157,13 @@ DATA
     array: DW [100, 200, 300, 400, 500]
 
 CODE
-    LD AX, [array + 0]      ; First element (array[0])
-    LD BX, [array + 2]      ; Second element (array[1]) - words are 2 bytes
-    LD CX, [array + 4]      ; Third element (array[2])
+    LDA AX, (array + 0)     ; First element (array[0])
+    LDA BX, (array + 2)     ; Second element (array[1]) - words are 2 bytes
+    LDA CX, (array + 4)     ; Third element (array[2])
+    
+    ; Or using sugar syntax
+    LDA AX, array[0]        ; Same as LDA AX, (array + 0)
+    LDA BX, array[2]        ; Same as LDA BX, (array + 2)
 ```
 
 **Characteristics**:
@@ -178,7 +182,7 @@ CODE
 
 Combine label with register for dynamic indexing.
 
-**Syntax**: `instruction operand, [label + register]`
+**Syntax**: `LDA operand, (label + register)` or sugar syntax `LDA operand, label[register]`
 
 **Examples**:
 ```assembly
@@ -187,13 +191,16 @@ DATA
 
 CODE
     LD CX, 0                ; Index = 0
-    LD AL, [array + CX]     ; Load array[0]
+    LDAB AL, (array + CX)   ; Load array[0]
     
     LD CX, 3                ; Index = 3
-    LD AL, [array + CX]     ; Load array[3]
+    LDAB AL, (array + CX)   ; Load array[3]
     
     INC CX                  ; Index = 4
-    LD AL, [array + CX]     ; Load array[4]
+    LDAB AL, (array + CX)   ; Load array[4]
+    
+    ; Or using sugar syntax
+    LDAB AL, array[CX]      ; Same as LDAB AL, (array + CX)
 ```
 
 **Characteristics**:
@@ -205,6 +212,80 @@ CODE
 - Array iteration
 - Variable indexing
 - Loop-based access
+
+---
+
+### 7. Array Index Sugar Syntax
+
+Syntactic sugar for array indexing that automatically converts to memory access.
+
+**Syntax**: `instruction operand, label[expression]`
+
+**Examples**:
+```assembly
+DATA
+    bytes: DB [10, 20, 30, 40, 50]
+    words: DW [100, 200, 300, 400]
+
+CODE
+    ; Register index (PRIMARY use case for sugar syntax)
+    LD CX, 4
+    LD DL, bytes[CX]        ; → LDAB DL, (bytes + CX)
+    LD BX, words[DX]        ; → LDA BX, (words + DX)
+    
+    ; Complex expressions with registers (GOOD use)
+    LD BX, 2
+    LD AL, bytes[BX + 1]    ; → LDAB AL, (bytes + BX + 1)
+    LD AX, words[CX - 2]    ; → LDA AX, (words + CX - 2)
+    
+    ; Constant index (sugar works but explicit is clearer)
+    LDAB AL, (bytes + 0)    ; Preferred for constants
+    LDAB BL, (bytes + 3)    ; Preferred for constants
+    LDA AX, (words + 2)     ; Preferred for constants
+```
+
+**Characteristics**:
+- **Automatic conversion**: `LD reg, label[expr]` becomes `LDA` or `LDAB` based on register size
+- **Register size detection**: 8-bit registers (AL, BL, etc.) → LDAB, 16-bit (AX, BX, etc.) → LDA
+- **More readable**: Clearly indicates array indexing intent
+- **Same behavior**: Identical to explicit parentheses syntax
+- **Works with all instructions**: Converts LD appropriately
+
+**Conversion Rules**:
+1. If instruction is `LD` with sugar syntax → changes to `LDA` (16-bit) or `LDAB` (8-bit) based on destination register
+2. Square brackets `[]` → parentheses `()`
+3. Expression inside preserved exactly
+4. Register size automatically detected (AL/BL/etc. → LDAB, AX/BX/etc. → LDA)
+
+**Comparison**:
+```assembly
+; These are exactly equivalent (8-bit register):
+LD AL, buffer[BX]           ; Sugar syntax (converts to LDAB)
+LDAB AL, (buffer + BX)      ; Explicit syntax (what it becomes)
+
+; These are exactly equivalent (16-bit register):
+LD AX, array[CX]            ; Sugar syntax (converts to LDA)
+LDA AX, (array + CX)        ; Explicit syntax (what it becomes)
+
+; These are exactly equivalent (8-bit with expression):
+LD DL, data[BX + 2]         ; Sugar with complex expression
+LDAB DL, (data + BX + 2)    ; Explicit equivalent
+```
+
+**When to Use Sugar Syntax**:
+- ✅ Array element access **with register indices**
+- ✅ Dynamic indexing (index value in a register)
+- ✅ Loop-based array traversal
+- ✅ When the array indexing intent is clear
+
+**When to Use Explicit Parentheses**:
+- ✅ **Constant offsets** (clearer: `(array + 5)` vs `array[5]`)
+- ✅ Address arithmetic (not array access)
+- ✅ When loading addresses (LD instruction for address calculation)
+- ✅ Complex pointer manipulation
+- ✅ When sugar syntax seems less clear
+
+**Best Practice**: Use sugar syntax primarily for **register-based indices** where it clearly shows array indexing. For constant offsets, explicit parentheses syntax is often clearer.
 
 ---
 
@@ -224,9 +305,9 @@ DATA
     base: DW [0x1000]
     
 CODE
-    LD AX, [base + 10]      ; base address + 10 bytes
-    LD BX, [base + CX]      ; base address + CX bytes
-    LDA DX, base + 100      ; Address of (base + 100)
+    LDA AX, (base + 10)     ; base address + 10 bytes
+    LDA BX, (base + CX)     ; base address + CX bytes
+    LD DX, (base + 100)     ; Address of (base + 100)
 ```
 
 **Rules**:
@@ -250,8 +331,8 @@ DATA
     buffer: DB [10, 20, 30]
     
 CODE
-    LD AX, [buffer + 10 - 2]    ; (buffer + 10) - 2 = buffer + 8
-    LDA BX, end_marker - 1       ; Address before end_marker
+    LDA AX, (buffer + 10 - 2)   ; (buffer + 10) - 2 = buffer + 8
+    LD BX, (end_marker - 1)     ; Address before end_marker
 ```
 
 **Rules**:
@@ -273,8 +354,8 @@ The assembler evaluates expressions left to right with these rules:
 **Examples**:
 ```assembly
 CODE
-    LD AX, [buffer + 4 + 2]     ; Evaluates as (buffer + 4) + 2 = buffer + 6
-    LD BX, [buffer + 10 - 3]    ; Evaluates as (buffer + 10) - 3 = buffer + 7
+    LDA AX, (buffer + 4 + 2)    ; Evaluates as (buffer + 4) + 2 = buffer + 6
+    LDA BX, (buffer + 10 - 3)   ; Evaluates as (buffer + 10) - 3 = buffer + 7
 ```
 
 ---
@@ -290,8 +371,8 @@ DATA
     array: DB [1, 2, 3, 4, 5]
 
 CODE
-    LD AX, [array + 3]          ; Address computed at assembly time
-                                 ; Becomes: LD AX, [0x0003] (if array is at 0x0000)
+    LDA AX, (array + 3)         ; Address computed at assembly time
+                                 ; Becomes: LDA AX, (0x0003) (if array is at 0x0000)
 ```
 
 **What's Evaluated at Compile-Time**:
@@ -312,7 +393,7 @@ DATA
 
 CODE
     LD CX, 3                    ; Index = 3
-    LD AX, [array + CX]         ; CX added to base address at runtime
+    LDAB AX, (array + CX)       ; CX added to base address at runtime
                                  ; Actual address = array_address + CX_value
 ```
 
@@ -336,9 +417,13 @@ DATA
     bytes: DB [10, 20, 30, 40, 50]
 
 CODE
-    LD AL, [bytes + 0]          ; First element
-    LD AL, [bytes + 1]          ; Second element
-    LD AL, [bytes + 2]          ; Third element
+    LDAB AL, (bytes + 0)        ; First element
+    LDAB AL, (bytes + 1)        ; Second element
+    LDAB AL, (bytes + 2)        ; Third element
+    
+    ; Or using sugar syntax
+    LDAB AL, bytes[0]           ; Same as LDAB AL, (bytes + 0)
+    LDAB AL, bytes[1]           ; Same as LDAB AL, (bytes + 1)
 ```
 
 #### Word Arrays
@@ -350,9 +435,13 @@ DATA
     words: DW [100, 200, 300, 400, 500]
 
 CODE
-    LD AX, [words + 0]          ; First element (100)
-    LD AX, [words + 2]          ; Second element (200)
-    LD AX, [words + 4]          ; Third element (300)
+    LDA AX, (words + 0)         ; First element (100)
+    LDA AX, (words + 2)         ; Second element (200)
+    LDA AX, (words + 4)         ; Third element (300)
+    
+    ; Or using sugar syntax
+    LDA AX, words[0]            ; Same as LDA AX, (words + 0)
+    LDA AX, words[2]            ; Same as LDA AX, (words + 2)
 ```
 
 **Important**: Must account for element size in offset!
@@ -367,13 +456,13 @@ DATA
     index: DW [0]
 
 CODE
-    LD CX, [index]              ; Load index value
-    LD AL, [array + CX]         ; Load array[index]
+    LDA CX, index               ; Load index value
+    LDAB AL, (array + CX)       ; Load array[index]
     
     ; Increment index
     INC CX
-    LD [index], CX              ; Store new index
-    LD AL, [array + CX]         ; Load array[index+1]
+    LDA index, CX               ; Store new index
+    LDAB AL, (array + CX)       ; Load array[index+1]
 ```
 
 ---
@@ -394,9 +483,9 @@ DATA
 
 CODE
     ; Access fields
-    LD AX, [person_age + 0]     ; Load age (word at offset 0)
-    LDAB BX, [person_age + 2]   ; Load initial (byte at offset 2)
-    LDAB CX, [person_age + 3]   ; Load grade (byte at offset 3)
+    LDA AX, (person_age + 0)    ; Load age (word at offset 0)
+    LDAB BX, (person_age + 2)   ; Load initial (byte at offset 2)
+    LDAB CX, (person_age + 3)   ; Load grade (byte at offset 3)
 ```
 
 ---
@@ -417,7 +506,7 @@ CODE
     
     ; Access matrix[1][2] (row=1, col=2, width=3)
     ; Offset = 1 * 3 + 2 = 5
-    LD AL, [matrix + 5]         ; Load value 6
+    LDAB AL, (matrix + 5)       ; Load value 6
     
     ; Dynamic access: matrix[BX][CX] where width=3
     LD BX, 1                    ; row = 1
@@ -425,7 +514,7 @@ CODE
     MUL AX, 3                   ; AX = row * width
     LD CX, 2                    ; col = 2
     ADD AX, CX                  ; AX = row * width + col
-    LD AL, [matrix + AX]        ; Load matrix[1][2]
+    LDAB AL, (matrix + AX)      ; Load matrix[1][2]
 ```
 
 ---
@@ -440,15 +529,15 @@ DATA
 
 CODE
     ; Load VALUE from address
-    LD AX, [buffer]             ; AX = 10 (value at buffer)
-    LD BX, [buffer + 2]         ; BX = 30 (value at buffer+2)
+    LDAB AX, buffer             ; AX = 10 (value at buffer)
+    LDAB BX, (buffer + 2)       ; BX = 30 (value at buffer+2)
     
     ; Load ADDRESS into register
-    LDA CX, buffer              ; CX = address of buffer
-    LDA DX, buffer + 2          ; DX = address of buffer+2
+    LD CX, buffer               ; CX = address of buffer
+    LD DX, (buffer + 2)         ; DX = address of buffer+2
     
     ; Use address for indirect access
-    LD AL, (CX)                 ; AL = value at address in CX
+    LDAB AL, CX                 ; AL = value at address in CX
 ```
 
 ---
@@ -460,31 +549,31 @@ CODE
 ✅ Add constant to label:
 ```assembly
 CODE
-    LD AX, [label + 10]
+    LDA AX, (label + 10)
 ```
 
 ✅ Add register to label:
 ```assembly
 CODE
-    LD AX, [label + CX]
+    LDA AX, (label + CX)
 ```
 
 ✅ Subtract constant from label:
 ```assembly
 CODE
-    LD AX, [label + 10 - 3]     ; = label + 7
+    LDA AX, (label + 10 - 3)    ; = label + 7
 ```
 
 ✅ Complex constant arithmetic:
 ```assembly
 CODE
-    LD AX, [label + 5 + 3 - 2]  ; = label + 6
+    LDA AX, (label + 5 + 3 - 2) ; = label + 6
 ```
 
 ✅ Register offset with constant adjustment:
 ```assembly
 CODE
-    LD AX, [label + CX + 5]
+    LDA AX, (label + CX + 5)
 ```
 
 ---
@@ -494,38 +583,44 @@ CODE
 ❌ Add two labels:
 ```assembly
 CODE
-    LD AX, [label1 + label2]    ; ERROR: Cannot add labels
+    LDA AX, (label1 + label2)   ; ERROR: Cannot add labels
 ```
 
 ❌ Subtract labels:
 ```assembly
 CODE
-    LD AX, [label1 - label2]    ; ERROR: Cannot subtract labels
+    LDA AX, (label1 - label2)   ; ERROR: Cannot subtract labels
 ```
 
 ❌ Add two registers:
 ```assembly
 CODE
-    LD AX, [CX + DX]            ; ERROR: Cannot add registers
+    LDA AX, (CX + DX)           ; ERROR: Cannot add registers
 ```
 
 ❌ Multiply or divide:
 ```assembly
 CODE
-    LD AX, [label * 2]          ; ERROR: No multiply operator
-    LD AX, [label / 2]          ; ERROR: No divide operator
+    LDA AX, (label * 2)         ; ERROR: No multiply operator
+    LDA AX, (label / 2)         ; ERROR: No divide operator
 ```
 
-❌ Use parentheses for grouping:
+❌ Use nested parentheses for precedence:
 ```assembly
 CODE
-    LD AX, [(label + 5) * 2]    ; ERROR: No parentheses, no multiply
+    LDA AX, ((label + 5) * 2)   ; ERROR: No multiply, no nested parens
 ```
 
 ❌ Subtract register:
 ```assembly
 CODE
-    LD AX, [label - CX]         ; ERROR: Cannot subtract register
+    LDA AX, (label - CX)        ; ERROR: Cannot subtract register
+```
+
+❌ Use square brackets for expressions (except sugar syntax):
+```assembly
+CODE
+    LDA AX, [label + 10]        ; ERROR: Use (label + 10) instead
 ```
 
 ---
@@ -540,12 +635,12 @@ DATA
     length: DW [13]
 
 CODE
-    LDA BX, message             ; BX = string address
-    LD CX, [length]             ; CX = string length
+    LD BX, message              ; BX = string address
+    LDA CX, length              ; CX = string length
     LD AX, 0                    ; AX = sum accumulator
 
 sum_loop:
-    LDAB DX, (BX)               ; Load character (indirect)
+    LDAB DX, BX                 ; Load character (indirect)
     ADD AX, DX                  ; Add to sum
     INC BX                      ; Next character
     DEC CX                      ; Decrement counter
@@ -565,12 +660,12 @@ DATA
     max: DW [0]
 
 CODE
-    LDA BX, array               ; BX = array address
-    LD CX, [count]              ; CX = element count
-    LD AX, [array + 0]          ; AX = first element (initial max)
+    LD BX, array                ; BX = array address
+    LDA CX, count               ; CX = element count
+    LDA AX, (array + 0)         ; AX = first element (initial max)
 
 max_loop:
-    LD DX, (BX)                 ; Load current element
+    LDA DX, BX                  ; Load current element
     CMP DX, AX                  ; Compare with current max
     JPZ update_max              ; If DX > AX (result = 1), update
     JMP continue                ; Otherwise continue
@@ -584,7 +679,7 @@ continue:
     DEC CX                      ; Decrement counter
     JPNZ max_loop               ; Continue if more elements
     
-    LD [max], AX                ; Store result
+    LDA max, AX                 ; Store result
     HALT
 ```
 
@@ -599,14 +694,13 @@ DATA
     size: DW [10]
 
 CODE
-    LDA BX, source              ; BX = source pointer
-    LDA DX, dest                ; DX = dest pointer
-    LD CX, [size]               ; CX = byte count
+    LD BX, source               ; BX = source pointer
+    LD DX, dest                 ; DX = dest pointer
+    LDA CX, size                ; CX = byte count
 
 copy_loop:
-    LDAB AX, (BX)               ; Load byte from source
-    ; Store to dest (would need store instruction)
-    LD (DX), AL                 ; Store byte to dest
+    LDAB AX, BX                 ; Load byte from source
+    LDAB DX, AL                 ; Store byte to dest
     
     INC BX                      ; Next source byte
     INC DX                      ; Next dest byte
@@ -628,14 +722,14 @@ DATA
     result: DW [0]
 
 CODE
-    LD CX, [input]              ; CX = input value
+    LDA CX, input               ; CX = input value
     
     ; Each word is 2 bytes, so multiply index by 2
     LD AX, CX
     MUL AX, 2                   ; AX = index * 2 (byte offset)
     
-    LD BX, [squares + AX]       ; Load squares[input]
-    LD [result], BX             ; Store result
+    LDA BX, (squares + AX)      ; Load squares[input]
+    LDA result, BX              ; Store result
     
     HALT                        ; result = 25 (square of 5)
 ```
@@ -652,15 +746,15 @@ DATA
     item_index: DW [1]          ; Access item 1
 
 CODE
-    LD CX, [item_index]         ; CX = item index
+    LDA CX, item_index          ; CX = item index
     
     ; Calculate offset: index * 4 (each item is 4 bytes)
     LD AX, CX
     MUL AX, 4                   ; AX = byte offset to item
     
     ; Access fields
-    LD BX, [items + AX + 0]     ; Load id field
-    LD DX, [items + AX + 2]     ; Load value field
+    LDA BX, (items + AX + 0)    ; Load id field
+    LDA DX, (items + AX + 2)    ; Load value field
     
     ; BX = 2 (id of item 1)
     ; DX = 200 (value of item 1)
@@ -696,7 +790,7 @@ DATA
 
 CODE
 start:                          ; Address: 0x0002
-    LD AX, [value]              ; Address: 0x0002
+    LDA AX, value               ; Address: 0x0002
     HALT                        ; Address: 0x0005
 ```
 
@@ -736,9 +830,9 @@ DATA
     person_score: DW [95]               ; score
 
 CODE
-    LD AX, [person_age + 0]             ; Load age
-    LDAB BX, [person_name + 0]          ; Load first char of name
-    LD CX, [person_name + 32]           ; Load score
+    LDA AX, (person_age + 0)            ; Load age
+    LDAB BX, (person_name + 0)          ; Load first char of name
+    LDA CX, (person_name + 32)          ; Load score
 ```
 
 ### 2. Account for Element Size
@@ -750,9 +844,9 @@ DATA
     words: DW [100, 200, 300]
 
 CODE
-    LD AX, [words + 0]          ; element 0
-    LD BX, [words + 2]          ; element 1 (NOT +1!)
-    LD CX, [words + 4]          ; element 2 (NOT +2!)
+    LDA AX, (words + 0)         ; element 0
+    LDA BX, (words + 2)         ; element 1 (NOT +1!)
+    LDA CX, (words + 4)         ; element 2 (NOT +2!)
 ```
 
 ### 3. Validate Index Bounds
@@ -765,11 +859,12 @@ DATA
     array_size: DW [5]
 
 CODE
-    LD CX, [index]              ; Load index
-    CMP CX, [array_size]        ; Compare with size
+    LDA CX, index               ; Load index
+    LDA DX, array_size          ; Load size
+    CMP CX, DX                  ; Compare with size
     JPNC bounds_error           ; Jump if CX >= size
     
-    LD AL, [array + CX]         ; Safe access
+    LDAB AL, (array + CX)       ; Safe access
     JMP continue
     
 bounds_error:
@@ -786,9 +881,9 @@ Designate specific registers for pointers:
 
 ```assembly
 CODE
-    LDA BX, source              ; BX = source pointer (convention)
-    LDA DX, dest                ; DX = dest pointer (convention)
-    LD CX, count                ; CX = counter (convention)
+    LD BX, source               ; BX = source pointer (convention)
+    LD DX, dest                 ; DX = dest pointer (convention)
+    LDA CX, count               ; CX = counter (convention)
     
     ; Clear intent: BX and DX are pointers, CX is a count
 ```
@@ -803,7 +898,7 @@ CODE
     LD AX, BX                   ; AX = row
     MUL AX, 5                   ; AX = row * width
     ADD AX, CX                  ; AX = row * width + col
-    LD AL, [matrix + AX]        ; Load matrix[row][col]
+    LDAB AL, (matrix + AX)      ; Load matrix[row][col]
 ```
 
 ---
@@ -818,13 +913,13 @@ DATA
     words: DW [100, 200, 300]
 
 CODE
-    LD AX, [words + 1]          ; Loads partial word! (middle of elements)
+    LDA AX, (words + 1)         ; Loads partial word! (middle of elements)
 ```
 
 **Correct**:
 ```assembly
 CODE
-    LD AX, [words + 2]          ; Loads second element (offset by 2 bytes)
+    LDA AX, (words + 2)         ; Loads second element (offset by 2 bytes)
 ```
 
 ---
@@ -834,13 +929,13 @@ CODE
 **Potentially Confusing**:
 ```assembly
 CODE
-    LD AX, [10 + buffer]        ; Works, but unconventional
+    LDA AX, (10 + buffer)       ; Works, but unconventional
 ```
 
 **Better**:
 ```assembly
 CODE
-    LD AX, [buffer + 10]        ; More readable
+    LDA AX, (buffer + 10)       ; More readable
 ```
 
 ---
@@ -850,7 +945,7 @@ CODE
 **Wrong**:
 ```assembly
 CODE
-    LD AX, [CX + DX]            ; ERROR: Can't add two registers
+    LDA AX, (CX + DX)           ; ERROR: Can't add two registers
 ```
 
 **Correct**:
@@ -858,7 +953,7 @@ CODE
 CODE
     LD AX, CX
     ADD AX, DX                  ; Calculate address in AX
-    LD BX, (AX)                 ; Load from calculated address
+    LDA BX, AX                  ; Load from calculated address
 ```
 
 ---
@@ -869,8 +964,8 @@ CODE
 ```assembly
 CODE
     LD CX, 5
-    LD AX, [buffer + CX]        ; CX evaluated at RUNTIME, not compile-time
-    ; You can't do: LD AX, [buffer + 5] to mean the same thing
+    LDA AX, (buffer + CX)       ; CX evaluated at RUNTIME, not compile-time
+    ; You can't do: LDA AX, (buffer + 5) to mean the same thing
 ```
 
 **Understanding**:

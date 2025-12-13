@@ -8,11 +8,11 @@ DATA
     index: DW [0]
 
 CODE
-    LD CX, [index]              ; Load index value
-    LDAB AL, [array + CX]       ; Load array[index]
+    LDA CX, index              ; Load index value
+    LDAB AL, (array + CX)       ; Load array[index]
     
     ; Increment index
     INC CX
-    LD [index], CX              ; Store new index
-    LDAB AL, [array + CX]       ; Load array[index+1]
+    LDA index, CX              ; Store new index
+    LDAB AL, (array + CX)       ; Load array[index+1]
     HALT

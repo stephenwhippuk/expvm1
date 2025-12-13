@@ -10,6 +10,6 @@ DATA
     addresses: DW [0x0000, 0x1000, 0x2000]
 
 CODE
-    LD AX, [coordinates + 0]
-    LD BX, [addresses + 0]
+    LDA AX, coordinates
+    LDA BX, addresses
     HALT

@@ -7,5 +7,5 @@ DATA
     value: DW [42]
 
 CODE
-    LD AX, [value]
+    LDA AX, value
     HALT

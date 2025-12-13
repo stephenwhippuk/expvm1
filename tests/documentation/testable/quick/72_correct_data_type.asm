@@ -8,6 +8,6 @@ DATA
     small2: DB [255]
 
 CODE
-    LD AX, [small]
-    LD BX, [small2]
+    LDA AX, small
+    LDA BX, small2
     HALT

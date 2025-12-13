@@ -10,15 +10,15 @@ DATA
     item_index: DW [1]          ; Access item 1
 
 CODE
-    LD CX, [item_index]         ; CX = item index
+    LDA CX, item_index         ; CX = item index
     
     ; Calculate offset: index * 4 (each item is 4 bytes)
     LD AX, CX
     MUL AX, 4                   ; AX = byte offset to item
     
     ; Access fields
-    LD BX, [items + AX + 0]     ; Load id field
-    LD DX, [items + AX + 2]     ; Load value field
+    LDA BX, (items + AX)     ; Load id field
+    LDA DX, (items + AX + 2)     ; Load value field
     
     ; BX = 2 (id of item 1)
     ; DX = 200 (value of item 1)

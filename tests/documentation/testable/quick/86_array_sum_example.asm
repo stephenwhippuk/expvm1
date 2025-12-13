@@ -10,15 +10,15 @@ DATA
 
 CODE
     LD AX, 0            ; Sum accumulator
-    LDA BX, array       ; Array pointer
-    LD CX, [count]      ; Element count
+    LD BX, array       ; Array pointer
+    LDA CX, count      ; Element count
 
 sum_loop:
-    LDAB DX, (BX)       ; Load byte from array
+    LDAB DX, BX       ; Load byte from array
     ADD AX, DX          ; Add to sum
     INC BX              ; Next element
     DEC CX              ; Decrement count
     JPNZ sum_loop       ; Continue if more elements
     
-    LD [result], AX     ; Store result (150)
+    LDA result, AX     ; Store result (150)
     HALT

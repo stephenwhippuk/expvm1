@@ -8,12 +8,12 @@ DATA
 
 CODE
     ; Unpack a word into separate bytes
-    LD AX, [packed]     ; AX = 0x1234
+    LDA AX, packed     ; AX = 0x1234
     LD BL, AH           ; BL = 0x12 (high byte)
     LD CL, AL           ; CL = 0x34 (low byte)
     
     ; Pack two bytes into a word
     LD DH, 0xAB
     LD DL, 0xCD
-    LD [packed], DX     ; Write 0xABCD to memory
+    LDA packed, DX     ; Write 0xABCD to memory
     HALT

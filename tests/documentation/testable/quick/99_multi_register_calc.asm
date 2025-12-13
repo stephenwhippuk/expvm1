@@ -12,12 +12,12 @@ DATA
 
 CODE
     ; Calculate: result = (a + b) * (c - d)
-    LD AX, [a]
-    ADD AX, [b]         ; AX = a + b
+    LDA AX, a
+    ADD AX, b         ; AX = a + b
     
-    LD DX, [c]
-    SUB DX, [d]         ; DX = c - d
+    LDA DX, c
+    SUB DX, d         ; DX = c - d
     
     MUL AX, DX          ; AX = (a + b) * (c - d)
-    LD [result], AX
+    LDA result, AX
     HALT

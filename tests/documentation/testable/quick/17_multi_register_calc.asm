@@ -13,13 +13,13 @@ DATA
     result: DW [0]
 
 CODE
-    LD AX, [a]
-    ADD AX, [b]
+    LDA AX, a
+    ADD AX, b
     
-    LD DX, [c]
-    SUB DX, [d]
+    LDA DX, c
+    SUB DX, d
     
     MUL AX, DX
-    LD [result], AX
+    LDA result, AX
     
     HALT

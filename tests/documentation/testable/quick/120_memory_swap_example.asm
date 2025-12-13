@@ -9,11 +9,11 @@ DATA
 
 CODE
     ; Load both values
-    LD AX, [var1]           ; AX = 100
-    LD BX, [var2]           ; BX = 200
+    LDA AX, var1           ; AX = 100
+    LDA BX, var2           ; BX = 200
     
     ; Swap
-    LD [var1], BX           ; var1 = 200
-    LD [var2], AX           ; var2 = 100
+    LDA var1, BX           ; var1 = 200
+    LDA var2, AX           ; var2 = 100
     
     HALT

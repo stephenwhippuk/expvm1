@@ -10,13 +10,13 @@ DATA
     result: DW [0]
 
 CODE
-    LD CX, [input]              ; CX = input value
+    LDA CX, input              ; CX = input value
     
     ; Each word is 2 bytes, so multiply index by 2
     LD AX, CX
     MUL AX, 2                   ; AX = index * 2 (byte offset)
     
-    LD BX, [squares + AX]       ; Load squares[input]
-    LD [result], BX             ; Store result
+    LDA BX, (squares + AX)       ; Load squares[input]
+    LDA result, BX             ; Store result
     
     HALT                        ; result = 25 (square of 5)

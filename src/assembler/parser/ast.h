@@ -235,13 +235,15 @@ namespace assembler {
         enum class Type {
             IMMEDIATE,      // Literal number
             REGISTER,       // Register name
-            MEMORY_DIRECT,  // (expression) or [expression]
+            ADDRESS_EXPR,   // Parentheses (expression) - address computation
+            MEMORY_ACCESS,  // Square brackets [expression] - memory dereference
             IDENTIFIER      // Label reference
         };
         
-        explicit OperandNode(Type type) : type_(type) {}
+        explicit OperandNode(Type type) : type_(type), is_sugar_syntax_(false) {}
         
         Type type() const { return type_; }
+        void set_type(Type type) { type_ = type; }
         
         void set_expression(std::unique_ptr<ExpressionNode> expr) {
             expression_ = std::move(expr);
@@ -249,11 +251,16 @@ namespace assembler {
         
         ExpressionNode* expression() const { return expression_.get(); }
         
+        // Sugar syntax tracking (for label[expr] → LDA conversion)
+        bool is_sugar_syntax() const { return is_sugar_syntax_; }
+        void set_sugar_syntax(bool value) { is_sugar_syntax_ = value; }
+        
         void accept(ASTVisitor& visitor) override;
         
     private:
         Type type_;
         std::unique_ptr<ExpressionNode> expression_;
+        bool is_sugar_syntax_;  // True if this came from label[index] syntax
     };
 
     /**
@@ -265,9 +272,14 @@ namespace assembler {
             : mnemonic_(mnemonic) {}
         
         const std::string& mnemonic() const { return mnemonic_; }
+        void set_mnemonic(const std::string& mnemonic) { mnemonic_ = mnemonic; }
         
         void add_operand(std::unique_ptr<OperandNode> operand) {
             operands_.push_back(std::move(operand));
+        }
+        
+        std::vector<std::unique_ptr<OperandNode>>& operands() {
+            return operands_;
         }
         
         const std::vector<std::unique_ptr<OperandNode>>& operands() const {

@@ -10,8 +10,8 @@ DATA
     var2: DW [200]
 
 CODE
-    LD AX, [var1]
-    LD BX, [var2]
-    LD [var1], BX
-    LD [var2], AX
+    LDA AX, var1
+    LDA BX, var2
+    LDA var1, BX
+    LDA var2, AX
     HALT

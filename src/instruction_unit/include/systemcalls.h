@@ -5,3 +5,4 @@
 #define SYSCALL_PRINT_STRING_FROM_STACK      0x0010  // Print string from stack
 #define SYSCALL_PRINT_LINE_FROM_STACK        0x0011  // Print line from stack
 #define SYSCALL_READ_LINE_ONTO_STACK         0x0012  // Read line onto stack
+#define SYSCALL_DEBUG_PRINT_WORD             0x1500  // Debug: print word from stack as number

@@ -9,10 +9,10 @@ DATA
     flags: DW [0x0000]
 
 CODE
-    LD AX, [flags]
+    LDA AX, flags
     OR AX, 0x0001
     OR AX, 0x0010
     AND AX, 0xFFFE
     XOR AX, 0x0010
-    LD [flags], AX
+    LDA flags, AX
     HALT

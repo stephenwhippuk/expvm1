@@ -1,6 +1,7 @@
 #include "assembler/lexer/lexer.h"
 #include "assembler/parser/parser.h"
 #include "assembler/semantic/semantic_analyzer.h"
+#include "assembler/semantic/instruction_rewriter.h"
 #include "assembler/ir/code_graph_builder.h"
 #include "assembler/codegen/address_resolver.h"
 #include "assembler/codegen/binary_writer.h"
@@ -91,6 +92,11 @@ int main(int argc, char* argv[]) {
             }
             return 1;
         }
+        
+        // Pass 1.5: Rewrite syntactic sugar
+        if (verbose) std::cout << "Pass 1.5: Rewriting syntactic sugar..." << std::endl;
+        InstructionRewriter rewriter;
+        rewriter.rewrite(*ast);
         
         // Pass 2: Semantic analysis
         if (verbose) std::cout << "Pass 2: Semantic analysis..." << std::endl;

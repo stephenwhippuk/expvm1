@@ -1,7 +1,24 @@
 #include "code_graph.h"
+#include <algorithm>
+#include <stdexcept>
 
 namespace lvm {
 namespace assembler {
+
+    // Helper function to convert register name to byte code
+    // NOTE: CPU uses 1-based register codes (AX=1, BX=2, etc.)
+    static uint8_t register_name_to_code(const std::string& name) {
+        std::string upper = name;
+        std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+        
+        if (upper == "AX" || upper == "AL" || upper == "AH") return 0x01;
+        if (upper == "BX" || upper == "BL" || upper == "BH") return 0x02;
+        if (upper == "CX" || upper == "CL" || upper == "CH") return 0x03;
+        if (upper == "DX" || upper == "DL" || upper == "DH") return 0x04;
+        if (upper == "EX" || upper == "EL" || upper == "EH") return 0x05;
+        
+        throw std::runtime_error("Unknown register name: " + name);
+    }
 
     uint32_t CodeInstructionNode::size() const {
         // Opcode (1 byte) + operands
@@ -19,8 +36,8 @@ namespace assembler {
                     total += 4;  // 32-bit address
                     break;
                 case InstructionOperand::Type::REGISTER:
-                    // Registers are typically encoded in the opcode or as 1 byte
-                    // For now, assume no additional bytes (handled by opcode variants)
+                    // Registers are encoded as 1 byte
+                    total += 1;
                     break;
                 case InstructionOperand::Type::EXPRESSION:
                     // Complex expressions become addresses after resolution
@@ -58,7 +75,8 @@ namespace assembler {
                     break;
                     
                 case InstructionOperand::Type::REGISTER:
-                    // Register encoding handled by opcode selection
+                    // Encode register as 1 byte
+                    bytes.push_back(register_name_to_code(operand.register_name));
                     break;
             }
         }

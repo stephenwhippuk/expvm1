@@ -17,5 +17,5 @@ count_up_loop:
     DEC CX
     JPNZ count_up_loop
     
-    LD [final_count], AX
+    LDA final_count, AX
     HALT

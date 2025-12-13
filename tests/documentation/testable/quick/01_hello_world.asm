@@ -11,5 +11,5 @@ DATA
 
 CODE
 start:
-    LD AX, [message]
+    LDA AX, message
     HALT

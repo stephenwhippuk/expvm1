@@ -11,12 +11,12 @@ DATA
     rotated_right: DW [0]
 
 CODE
-    LD AX, [value]
+    LDA AX, value
     ROL AX, 1
-    LD [rotated_left], AX
+    LDA rotated_left, AX
     
-    LD AX, [value]
+    LDA AX, value
     ROR AX, 1
-    LD [rotated_right], AX
+    LDA rotated_right, AX
     
     HALT

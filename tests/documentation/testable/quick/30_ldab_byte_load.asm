@@ -9,5 +9,5 @@ DATA
     byte_val: DB [0x42]
 
 CODE
-    LDAB AX, [byte_val]
+    LDAB AX, byte_val
     HALT

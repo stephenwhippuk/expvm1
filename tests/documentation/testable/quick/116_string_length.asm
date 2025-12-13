@@ -13,7 +13,7 @@ CODE
 
 strlen_loop:
     ; Load current character
-    LDAB CL, [text + BX]
+    LDAB CL, (text + BX)
     
     ; Check for null terminator
     CMP CL, 0
@@ -25,5 +25,5 @@ strlen_loop:
     JMP strlen_loop
 
 strlen_done:
-    LD [length], AX         ; length = 13
+    LDA length, AX         ; length = 13
     HALT

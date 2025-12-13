@@ -137,6 +137,10 @@ void InstructionUnit::system_call(word_t syscall_number) {
             io_accessor->read_line_onto_stack();
             break;
         }
+        case SYSCALL_DEBUG_PRINT_WORD: {
+            io_accessor->debug_print_word();
+            break;
+        }
         default:
             throw lvm::runtime_error("Invalid system call number: " + std::to_string(syscall_number));
     }

@@ -3,6 +3,7 @@
 #include "../src/assembler/parser/ast.h"
 #include "../src/assembler/semantic/symbol_table.h"
 #include "../src/assembler/semantic/semantic_analyzer.h"
+#include "../src/assembler/semantic/instruction_rewriter.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -127,11 +128,22 @@ private:
                 break;
             case OperandNode::Type::IDENTIFIER:
                 std::cout << operand.expression()->identifier();
+                if (operand.is_sugar_syntax()) {
+                    std::cout << " (sugar)";
+                }
                 break;
-            case OperandNode::Type::MEMORY_DIRECT:
+            case OperandNode::Type::ADDRESS_EXPR:
+                std::cout << "(";
+                print_expression(*operand.expression());
+                std::cout << ")";
+                break;
+            case OperandNode::Type::MEMORY_ACCESS:
                 std::cout << "[";
                 print_expression(*operand.expression());
                 std::cout << "]";
+                if (operand.is_sugar_syntax()) {
+                    std::cout << " (sugar)";
+                }
                 break;
         }
     }
@@ -201,9 +213,18 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         
-        std::cout << "=== AST ===\n";
+        std::cout << "=== AST (Before Rewriting) ===\n";
         ASTPrinter printer;
         ast->accept(printer);
+        
+        // Rewrite syntactic sugar
+        std::cout << "\n=== Rewriting Syntactic Sugar ===\n";
+        InstructionRewriter rewriter;
+        rewriter.rewrite(*ast);
+        
+        std::cout << "=== AST (After Rewriting) ===\n";
+        ASTPrinter printer2;
+        ast->accept(printer2);
         
         // Semantic analysis
         std::cout << "\n=== Semantic Analysis ===\n";

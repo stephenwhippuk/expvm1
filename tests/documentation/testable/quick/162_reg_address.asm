@@ -7,7 +7,7 @@ data1: DW [0x1234]
 data2: DW [0x5678]
 
 CODE
-    LD AX, [data1]
-    LD [data2], BX
-    LDAB CX, [data1]
+    LDA AX, data1
+    LDA data2, BX
+    LDAB CX, data1
     HALT
