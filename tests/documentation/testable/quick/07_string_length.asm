@@ -14,7 +14,7 @@ CODE
     LD BX, 0
 
 strlen_loop:
-    LDAB CL, (text + BX)
+    LDAB CL, (text + 2 + BX)
     CMP CL, 0
     JPZ strlen_done
     INC AX

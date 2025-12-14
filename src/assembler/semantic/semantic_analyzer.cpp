@@ -109,6 +109,11 @@ namespace assembler {
         if (node.expression()) {
             node.expression()->accept(*this);
         }
+        
+        // Handle inline data operands
+        if (node.type() == OperandNode::Type::INLINE_DATA && node.inline_data()) {
+            node.inline_data()->accept(*this);
+        }
     }
 
     void SemanticAnalyzer::visit(ExpressionNode& node) {

@@ -9,8 +9,8 @@ DATA
     size: DW [10]
 
 CODE
-    LD BX, source              ; BX = source pointer
-    LD DX, dest                ; DX = dest pointer
+    LD BX, (source + 2)              ; BX = source pointer (skip size prefix)
+    LD DX, (dest + 2)                ; DX = dest pointer (skip size prefix)
     LDA CX, size               ; CX = byte count
 
 copy_loop:

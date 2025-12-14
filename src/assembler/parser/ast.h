@@ -21,6 +21,7 @@ namespace assembler {
     class InstructionNode;
     class OperandNode;
     class ExpressionNode;
+    class InlineDataNode;
 
     /**
      * Base class for all AST nodes
@@ -237,7 +238,8 @@ namespace assembler {
             REGISTER,       // Register name
             ADDRESS_EXPR,   // Parentheses (expression) - address computation
             MEMORY_ACCESS,  // Square brackets [expression] - memory dereference
-            IDENTIFIER      // Label reference
+            IDENTIFIER,     // Label reference
+            INLINE_DATA     // Inline DB/DW data definition
         };
         
         explicit OperandNode(Type type) : type_(type), is_sugar_syntax_(false) {}
@@ -255,11 +257,18 @@ namespace assembler {
         bool is_sugar_syntax() const { return is_sugar_syntax_; }
         void set_sugar_syntax(bool value) { is_sugar_syntax_ = value; }
         
+        // Inline data support (for DB/DW as operands)
+        void set_inline_data(std::unique_ptr<InlineDataNode> data) {
+            inline_data_ = std::move(data);
+        }
+        InlineDataNode* inline_data() const { return inline_data_.get(); }
+        
         void accept(ASTVisitor& visitor) override;
         
     private:
         Type type_;
         std::unique_ptr<ExpressionNode> expression_;
+        std::unique_ptr<InlineDataNode> inline_data_;
         bool is_sugar_syntax_;  // True if this came from label[index] syntax
     };
 

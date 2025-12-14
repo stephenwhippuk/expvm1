@@ -8,7 +8,7 @@ DATA
     length: DW [13]
 
 CODE
-    LD BX, message             ; BX = string address
+    LD BX, (message + 2)             ; BX = string address (skip size prefix)
     LDA CX, length             ; CX = string length
     LD AX, 0                    ; AX = sum accumulator
 

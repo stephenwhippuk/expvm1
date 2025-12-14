@@ -16,7 +16,7 @@ CODE
     LD BX, 0
 
 sum_array_loop:
-    LDAB DX, (array + BX)
+    LDAB DX, (array + 2 + BX)
     ADD AX, DX
     INC BX
     DEC CX

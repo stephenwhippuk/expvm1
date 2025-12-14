@@ -7,5 +7,5 @@ DATA
     array: DB [1, 2, 3]
 
 CODE
-    LDA AX, array
+    LDA AX, array      ; Load address of array (points to size word)
     HALT

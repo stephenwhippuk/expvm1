@@ -7,6 +7,6 @@ DATA
     buffer: DB [1, 2, 3, 4, 5]
 
 CODE
-    LDA AX, (buffer+5)   ; Valid - no spaces
-    LDA BX, (buffer + 5) ; Valid - with spaces
+    LDA AX, (buffer+7)   ; Valid - no spaces
+    LDA BX, (buffer + 7) ; Valid - with spaces
     HALT

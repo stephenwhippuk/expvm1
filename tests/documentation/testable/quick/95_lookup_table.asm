@@ -16,7 +16,7 @@ CODE
     LD AX, CX
     MUL AX, 2                   ; AX = index * 2 (byte offset)
     
-    LDA BX, (squares + AX)       ; Load squares[input]
+    LDA BX, (squares + 2 + AX)       ; Load squares[input]
     LDA result, BX             ; Store result
     
     HALT                        ; result = 25 (square of 5)

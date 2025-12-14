@@ -30,10 +30,8 @@ namespace assembler {
         for (auto& block : graph_.data_blocks()) {
             block->set_address(current_address);
             
-            // Update symbol table
-            if (!block->is_anonymous()) {
-                symbol_table_.set_address(block->label(), current_address);
-            }
+            // Update symbol table (including anonymous blocks with generated labels)
+            symbol_table_.set_address(block->label(), current_address);
             
             current_address += block->size();
         }

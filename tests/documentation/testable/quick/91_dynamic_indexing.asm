@@ -9,10 +9,10 @@ DATA
 
 CODE
     LDA CX, index              ; Load index value
-    LDAB AL, (array + CX)       ; Load array[index]
+    LDAB AL, (array + 2 + CX)       ; Load array[index]
     
     ; Increment index
     INC CX
     LDA index, CX              ; Store new index
-    LDAB AL, (array + CX)       ; Load array[index+1]
+    LDAB AL, (array + 2 + CX)       ; Load array[index+1]
     HALT

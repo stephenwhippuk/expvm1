@@ -278,6 +278,38 @@ CODE
 - **Decimal**: `42`, `1000`, `255`
 - **Hexadecimal**: `0x2A`, `0x03E8`, `0xFF` (prefix: `0x`)
 
+#### 1a. Inline Data (Anonymous Data Definitions)
+
+Data defined directly in instructions, creating anonymous blocks in the data segment.
+
+```assembly
+CODE
+    ; Inline word array
+    LD AX, DW [1, 2, 3, 4]        ; Loads address of anonymous data
+    
+    ; Inline byte array
+    LD BX, DB [10, 20, 30, 40, 50]
+    
+    ; Inline string
+    LD CX, DB "Hello, World!"
+```
+
+**Behavior**:
+- Creates anonymous data block with generated label (`__anon_N`)
+- Data placed in data segment
+- Instruction receives the address of the data
+- Equivalent to creating labeled data and using the label
+
+**Use Cases**:
+- One-time constant tables
+- Local string literals
+- Single-use lookup tables
+- Prototyping without declaring data section
+
+**Note**: Each inline data definition creates a separate block, even if identical. For reusable data, use labeled definitions in the DATA section.
+
+**Size Prefix**: Like all data blocks, inline data has a 2-byte size prefix. Access actual data at offset +2 from the returned address.
+
 **Rules:**
 - Case insensitive for hex digits (`0xFF` = `0xff`)
 - No separators allowed (no `1_000` or `0xFF_FF`)
@@ -345,6 +377,7 @@ start:
 - `LD reg, label` - Load address of label into register
 - `LD reg, (expression)` - Compute and load address
 - `LD reg, label[index]` - Sugar syntax (converted to LDA/LDAB based on register size)
+- `LD reg, DB/DW data` - Inline data (creates anonymous block, loads its address)
 
 **LDA/LDAB/LDAW Instructions** (Memory Access):
 - `LDA reg, label` - Load value FROM memory at label

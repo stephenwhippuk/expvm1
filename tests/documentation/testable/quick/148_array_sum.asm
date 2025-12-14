@@ -8,7 +8,7 @@ count: DW [5]
 
 CODE
     LD AX, 0            ; Sum accumulator
-    LD BX, array        ; Array pointer
+    LD BX, (array + 2)        ; Array pointer (skip size prefix)
     LDA CX, count      ; Counter
 loop:
     LDAB DX, BX       ; Load byte from array

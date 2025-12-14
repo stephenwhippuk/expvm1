@@ -52,7 +52,7 @@ start:
 ### Explanation
 
 1. **DATA Section**: Defines a string and its length
-   - `message`: String stored as bytes
+   - `message`: String stored as bytes with automatic 2-byte size prefix
    - `msg_len`: Word (16-bit) value storing length
 
 2. **CODE Section**: Simple execution flow
@@ -60,10 +60,18 @@ start:
    - `LDAB AX, message` - Loads first byte of message into AX
    - `HALT` - Stops execution
 
+**Important**: All data blocks have an automatic 2-byte size prefix. The label points to the size word, so actual data starts at offset +2.
+
 ### Expected Behavior
 
 - AX will contain 'H' (0x48) when program halts
 - Program terminates cleanly
+
+**Note**: To access the actual string data (skipping the size prefix):
+```assembly
+LDAB AL, (message + 2)    ; Load 'H' (first character)
+LDAB BL, (message + 3)    ; Load 'e' (second character)
+```
 
 ### Variations
 
@@ -73,13 +81,253 @@ DATA
     message: DB "Hi!"
 
 CODE
-    LDAB AL, (message + 0)    ; Load 'H'
-    LDAB BL, (message + 1)    ; Load 'i'
-    LDAB CL, (message + 2)    ; Load '!'
+    ; Note: Data has 2-byte size prefix, actual data starts at +2
+    LDAB AL, (message + 2)    ; Load 'H' (skip size prefix)
+    LDAB BL, (message + 3)    ; Load 'i'
+    LDAB CL, (message + 4)    ; Load '!'
     HALT
 ```
 
-**Note**: For direct byte access from a label, the parentheses syntax `(label + offset)` is used with LDAB.
+**Version 3: Reading the Size**
+```assembly
+DATA
+    message: DB "Hello"
+
+CODE
+    LD AX, message        ; AX = address of data block
+    LDA BX, AX            ; BX = size (5 bytes)
+    LDAB CL, (AX + 2)     ; CL = 'H' (first data byte at +2)
+    HALT
+```
+
+**Note**: The size word at the label contains the number of data bytes (excluding the 2-byte size prefix itself).
+
+---
+
+## Inline (Anonymous) Data
+
+### Learning Objectives
+- Understanding inline data definitions
+- When to use inline vs labeled data
+- Anonymous data block behavior
+- Memory efficiency with inline data
+
+### Overview
+
+Inline data allows you to define data directly within instructions without creating named labels. The assembler automatically creates anonymous data blocks in the data segment and uses their addresses.
+
+### Basic Syntax
+
+```assembly
+; ========================================
+; Inline Data Basics
+; Demonstrates anonymous data definitions
+; ========================================
+
+CODE
+    ; Word array - creates anonymous data block
+    LD AX, DW [100, 200, 300, 400]
+    LDA BX, AX              ; Load first word: 100
+    
+    ; Byte array - creates anonymous data block
+    LD CX, DB [10, 20, 30, 40, 50]
+    LDAB DL, (CX + 2)       ; Load byte at offset 2: 30
+    
+    ; String - creates anonymous data block
+    LD DX, DB "Hello, World!"
+    LDAB AL, DX             ; Load first character: 'H'
+    
+    HALT
+```
+
+### How It Works
+
+**Inline Data Syntax**: `LD register, DB/DW data`
+
+When the assembler encounters inline data:
+1. Creates an anonymous data block with a generated label (`__anon_0`, `__anon_1`, etc.)
+2. Prepends a 2-byte size word to the data
+3. Places the data in the data segment
+4. Replaces the operand with the address of the anonymous block
+5. The register receives the address of the size prefix
+
+**Memory Layout**:
+```
+__anon_0:  [size_low] [size_high] [data...]
+           ↑ label points here
+           ← 2 bytes →            ← actual data at +2 →
+```
+
+**Equivalent Transformation**:
+```assembly
+; This inline code:
+CODE
+    LD AX, DW [1, 2, 3]
+    LDA BX, AX           ; BX = size (6 bytes)
+    LDA CX, (AX + 2)     ; CX = first word (1), skip size
+
+; Is equivalent to:
+DATA
+    __anon_0: DW [1, 2, 3]  ; Has automatic size prefix
+CODE
+    LD AX, __anon_0
+    LDA BX, AX           ; BX = size (6 bytes)
+    LDA CX, (AX + 2)     ; CX = first word (1), skip size
+```
+
+### Comparison: Labeled vs Inline Data
+
+```assembly
+; ========================================
+; Labeled Data (Reusable)
+; ========================================
+
+DATA
+    numbers: DW [10, 20, 30, 40]
+    message: DB "Error"
+
+CODE
+    LD AX, numbers          ; Use in multiple places
+    LDA BX, numbers
+    LDA CX, numbers
+    
+    LD DX, message          ; Reusable string
+    CALL print_string
+
+; ========================================
+; Inline Data (One-time use)
+; ========================================
+
+CODE
+    ; Each creates its own anonymous block
+    LD AX, DW [10, 20, 30, 40]    ; __anon_0
+    LDA BX, AX
+    
+    LD CX, DB "Error"             ; __anon_1
+    CALL print_string
+    
+    ; Another inline block (separate from above)
+    LD DX, DW [10, 20, 30, 40]    ; __anon_2 (duplicate data!)
+```
+
+### When to Use Inline Data
+
+✅ **Use Inline Data When**:
+- Data is used only once in a single location
+- Constant lookup tables in specific functions
+- Temporary string literals
+- Small data structures used locally
+- Prototyping and quick testing
+
+```assembly
+; Good use: one-time constant table
+process_data:
+    LD BX, DW [1, 4, 9, 16, 25]    ; Squares table (local to function)
+    ; ... use BX ...
+    RET
+```
+
+✅ **Use Labeled Data When**:
+- Data is accessed from multiple locations
+- Data needs to be modified
+- Sharing data between functions
+- Large data structures
+- Data reused in loops
+
+```assembly
+; Good use: shared configuration
+DATA
+    config_flags: DW [0x0001, 0x0002, 0x0004]
+
+CODE
+init:
+    LD AX, config_flags
+    ; ... use config ...
+    
+apply_settings:
+    LD BX, config_flags        ; Reused
+    ; ... apply settings ...
+```
+
+### Advanced Examples
+
+**Inline Data with Expressions**:
+```assembly
+CODE
+    ; Create inline array and access with offset
+    LD AX, DB [5, 10, 15, 20, 25]
+    LDAB BL, (AX + 3)          ; Load 20 (4th element)
+    
+    ; Use register index with inline data
+    LD CX, 2                    ; Index
+    LD DX, DW [100, 200, 300]
+    LDA AX, (DX + CX)          ; Load from computed address
+```
+
+**Multiple Inline Data in One Function**:
+```assembly
+lookup_color:
+    ; Each inline block is separate
+    LD AX, DB [255, 0, 0]      ; Red RGB
+    LD BX, DB [0, 255, 0]      ; Green RGB (different block)
+    LD CX, DB [0, 0, 255]      ; Blue RGB (different block)
+    
+    ; Compare with input
+    CMP DX, AX
+    JPZ use_red
+    ; ...
+```
+
+**Inline Strings for Messages**:
+```assembly
+error_handler:
+    CMP AX, 1
+    JPZ file_error
+    CMP AX, 2
+    JPZ network_error
+    
+file_error:
+    LD AX, DB "File not found"
+    CALL print_error
+    RET
+    
+network_error:
+    LD AX, DB "Network timeout"
+    CALL print_error
+    RET
+```
+
+### Important Notes
+
+1. **Not Deduplication**: Each inline data definition creates a separate block, even with identical data
+2. **Memory Location**: All inline data goes to the data segment, not inline in code
+3. **Single Copy**: If the same inline data appears multiple times, multiple copies exist
+4. **Address Loading**: `LD reg, DB/DW data` loads the *address* of the data, not the data itself
+5. **Use LDA/LDAB**: After loading the address, use memory access instructions to read values
+
+### Memory Efficiency Considerations
+
+```assembly
+; INEFFICIENT: Duplicate inline data
+loop:
+    LD AX, DB [1, 2, 3, 4, 5]    ; Creates new block each time seen!
+    ; ... process ...
+    DEC CX
+    JPNZ loop
+
+; EFFICIENT: Labeled data
+DATA
+    data: DB [1, 2, 3, 4, 5]     ; Single block
+    
+CODE
+loop:
+    LD AX, data                   ; Reuses same block
+    ; ... process ...
+    DEC CX
+    JPNZ loop
+```
+
+**Best Practice**: Use inline data for true one-time constants; use labeled data for anything referenced more than once.
 
 ---
 

@@ -331,7 +331,54 @@ namespace assembler {
         return inline_data;
     }
 
+    std::unique_ptr<InlineDataNode> Parser::parse_inline_data_operand() {
+        InlineDataNode::Type type;
+        
+        if (match(TokenType::KEYWORD_DB)) {
+            type = InlineDataNode::Type::BYTE;
+        } else if (match(TokenType::KEYWORD_DW)) {
+            type = InlineDataNode::Type::WORD;
+        } else {
+            error_at_current("Expected DB or DW");
+            throw ParseError("Expected DB or DW", current_.line, current_.column);
+        }
+        
+        std::unique_ptr<InlineDataNode> inline_data;
+        
+        if (check(TokenType::STRING)) {
+            inline_data = std::make_unique<InlineDataNode>(type, current_.value);
+            advance();
+        } else if (match(TokenType::LEFT_BRACKET)) {
+            std::vector<uint64_t> values;
+            if (!check(TokenType::RIGHT_BRACKET)) {
+                do {
+                    Token num = consume(TokenType::NUMBER, "Expected number");
+                    values.push_back(num.number_value);
+                } while (match(TokenType::COMMA));
+            }
+            consume(TokenType::RIGHT_BRACKET, "Expected ']'");
+            inline_data = std::make_unique<InlineDataNode>(type, values);
+        } else {
+            error_at_current("Expected string or array");
+            throw ParseError("Expected string or array", current_.line, current_.column);
+        }
+        
+        inline_data->set_location(previous_.line, previous_.column);
+        // Note: No newline consumption for operand version
+        
+        return inline_data;
+    }
+
     std::unique_ptr<OperandNode> Parser::parse_operand() {
+        // Inline data: DB/DW as operand (creates anonymous data block)
+        if (check(TokenType::KEYWORD_DB) || check(TokenType::KEYWORD_DW)) {
+            auto inline_data = parse_inline_data_operand();
+            auto operand = std::make_unique<OperandNode>(OperandNode::Type::INLINE_DATA);
+            operand->set_inline_data(std::move(inline_data));
+            operand->set_location(previous_.line, previous_.column);
+            return operand;
+        }
+        
         // Register
         if (check(TokenType::REGISTER)) {
             auto operand = std::make_unique<OperandNode>(OperandNode::Type::REGISTER);

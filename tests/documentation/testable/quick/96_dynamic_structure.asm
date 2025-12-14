@@ -17,8 +17,8 @@ CODE
     MUL AX, 4                   ; AX = byte offset to item
     
     ; Access fields
-    LDA BX, (items + AX)     ; Load id field
-    LDA DX, (items + AX + 2)     ; Load value field
+    LDA BX, (items + 2 + AX)     ; Load id field
+    LDA DX, (items + 2 + AX + 2)     ; Load value field
     
     ; BX = 2 (id of item 1)
     ; DX = 200 (value of item 1)

@@ -10,14 +10,14 @@ DATA
 
 CODE
     ; Initialize with first element
-    LDA AX, numbers    ; AX = current max
+    LDA AX, (numbers + 2)    ; AX = current max
     LDA CX, count          ; CX = count
     DEC CX                  ; Already processed first element
-    LD BX, 2                ; BX = index (words are 2 bytes)
+    LD BX, 4                ; BX = index (words are 2 bytes, +2 for size prefix)
 
 find_max_loop:
     ; Load current element
-    LDA DX, (numbers + BX)
+    LDA DX, (numbers + 2 + BX)
     
     ; Compare with current max
     CMP DX, AX              ; Compare DX with AX

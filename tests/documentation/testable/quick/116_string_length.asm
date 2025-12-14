@@ -13,7 +13,7 @@ CODE
 
 strlen_loop:
     ; Load current character
-    LDAB CL, (text + BX)
+    LDAB CL, (text + 2 + BX)
     
     ; Check for null terminator
     CMP CL, 0

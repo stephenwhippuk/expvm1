@@ -289,6 +289,93 @@ LDAB DL, (data + BX + 2)    ; Explicit equivalent
 
 ---
 
+### 6. Inline Data Addressing
+
+Create anonymous data blocks directly in instructions.
+
+**Syntax**: `LD register, DB/DW data`
+
+**Examples**:
+```assembly
+CODE
+    ; Inline word array
+    LD AX, DW [100, 200, 300, 400]
+    LDA BX, (AX + 2)           ; Access third word (300)
+    
+    ; Inline byte array
+    LD CX, DB [5, 10, 15, 20, 25]
+    LDAB DL, (CX + 3)          ; Access fourth byte (20)
+    
+    ; Inline string
+    LD DX, DB "Error: File not found"
+    LDAB AL, DX                ; Load first character
+```
+
+**Characteristics**:
+- **Anonymous Creation**: Assembler generates unique label (`__anon_0`, `__anon_1`, etc.)
+- **Data Segment Placement**: Data stored in data segment, not inline in code
+- **Address Loading**: Instruction receives address of data block
+- **Single Use**: Intended for one-time access; duplicates create separate blocks
+- **No Deduplication**: Identical inline data creates multiple copies
+
+**Transformation**:
+```assembly
+; Source code:
+LD AX, DW [1, 2, 3]
+
+; Assembler generates:
+DATA (internal)
+    __anon_0: DW [1, 2, 3]
+CODE
+    LD AX, __anon_0
+```
+
+**When to Use**:
+- ✅ One-time constant tables
+- ✅ Function-local string literals  
+- ✅ Small lookup tables used once
+- ✅ Quick prototyping
+
+**When to Use Labeled Data Instead**:
+- ✅ Data accessed multiple times
+- ✅ Data shared between functions
+- ✅ Modifiable data
+- ✅ Large data structures
+
+**Common Patterns**:
+```assembly
+; Pattern 1: Inline lookup table
+process_value:
+    LD BX, DW [1, 4, 9, 16, 25]    ; Squares table
+    LDA AX, (BX + CX)              ; Lookup by index
+    RET
+
+; Pattern 2: Error messages
+error_handler:
+    CMP AL, 1
+    JPZ file_error
+    LD AX, DB "Unknown error"      ; Different for each error
+    RET
+    
+file_error:
+    LD AX, DB "File not found"
+    RET
+
+; Pattern 3: Configuration data
+init_device:
+    LD AX, DB [0x80, 0x40, 0x20]   ; Device init sequence
+    CALL send_config
+    RET
+```
+
+**Important Notes**:
+1. Each occurrence creates a new block (no automatic deduplication)
+2. Data cannot be referenced from other locations (no label)
+3. Suitable for true constants only (cannot be modified by label)
+4. Memory overhead if same data defined multiple times
+
+---
+
 ## Expression Syntax
 
 ### Arithmetic Operators

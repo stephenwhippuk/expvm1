@@ -8,9 +8,9 @@ DATA
 
 CODE
 main:
-    LDA AX, value
+    LDA AX, (value + 2)
     CALL square         ; Call square function
-    LDA value, AX      ; Store result (100)
+    LDA (value + 2), AX      ; Store result (100)
     HALT
 
 square:

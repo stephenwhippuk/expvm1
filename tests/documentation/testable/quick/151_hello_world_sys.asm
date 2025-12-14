@@ -10,7 +10,7 @@ start:
     LD CX, 0x0B
 loop:
     DEC CX
-    LDA AX, (message + CX)
+    LDA AX, (message + 2 + CX)
     PUSHB AX
     CMP CX, 0x00
     JPNZ loop

@@ -7,5 +7,5 @@ DATA
     byte_val: DB [0x42]
 
 CODE
-    LDAB AX, byte_val ; AX = 0x0042 (byte zero-extended)
+    LDAB AX, (byte_val + 2) ; AX = 0x0042 (byte zero-extended)
     HALT

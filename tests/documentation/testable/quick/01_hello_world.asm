@@ -11,5 +11,5 @@ DATA
 
 CODE
 start:
-    LDA AX, message
+    LDA AX, (message + 2)  ; Load address of first character
     HALT

@@ -10,7 +10,7 @@ DATA
 CODE
     ; Sum array elements
     LD AX, 0            ; AX = accumulator (sum)
-    LD BX, array       ; BX = array base pointer
+    LD BX, (array + 2)       ; BX = array base pointer (skip size prefix)
     LD CX, 5            ; CX = element count
     
 sum_loop:

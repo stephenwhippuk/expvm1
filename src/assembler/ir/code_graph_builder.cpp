@@ -58,8 +58,15 @@ namespace assembler {
         // Convert data definition to bytes
         auto bytes = data_definition_to_bytes(node);
         
+        // Prepend size word (little-endian)
+        uint16_t size = static_cast<uint16_t>(bytes.size());
+        std::vector<uint8_t> sized_bytes;
+        sized_bytes.push_back(static_cast<uint8_t>(size & 0xFF));
+        sized_bytes.push_back(static_cast<uint8_t>((size >> 8) & 0xFF));
+        sized_bytes.insert(sized_bytes.end(), bytes.begin(), bytes.end());
+        
         // Create data block
-        auto block = std::make_unique<DataBlockNode>(node.label(), bytes);
+        auto block = std::make_unique<DataBlockNode>(node.label(), sized_bytes);
         graph_->add_data_block(std::move(block));
     }
 
@@ -133,6 +140,30 @@ namespace assembler {
                 current_operand_.type = InstructionOperand::Type::EXPRESSION;
                 node.expression()->accept(*this);
                 break;
+                
+            case OperandNode::Type::INLINE_DATA:
+                // Inline data creates anonymous data block and uses its address
+                if (node.inline_data()) {
+                    // Create anonymous data block
+                    auto bytes = inline_data_to_bytes(*node.inline_data());
+                    
+                    // Prepend size word (little-endian)
+                    uint16_t size = static_cast<uint16_t>(bytes.size());
+                    std::vector<uint8_t> sized_bytes;
+                    sized_bytes.push_back(static_cast<uint8_t>(size & 0xFF));
+                    sized_bytes.push_back(static_cast<uint8_t>((size >> 8) & 0xFF));
+                    sized_bytes.insert(sized_bytes.end(), bytes.begin(), bytes.end());
+                    
+                    std::string label = "__anon_" + std::to_string(anonymous_counter_++);
+                    
+                    auto block = std::make_unique<DataBlockNode>(label, sized_bytes);
+                    graph_->add_data_block(std::move(block));
+                    
+                    // Use the label as an address reference
+                    current_operand_.type = InstructionOperand::Type::ADDRESS;
+                    current_operand_.symbol_name = label;
+                }
+                break;
         }
     }
 
@@ -178,9 +209,17 @@ namespace assembler {
     void CodeGraphBuilder::visit(InlineDataNode& node) {
         // Create anonymous data block
         auto bytes = inline_data_to_bytes(node);
+        
+        // Prepend size word (little-endian)
+        uint16_t size = static_cast<uint16_t>(bytes.size());
+        std::vector<uint8_t> sized_bytes;
+        sized_bytes.push_back(static_cast<uint8_t>(size & 0xFF));
+        sized_bytes.push_back(static_cast<uint8_t>((size >> 8) & 0xFF));
+        sized_bytes.insert(sized_bytes.end(), bytes.begin(), bytes.end());
+        
         std::string label = "__anon_" + std::to_string(anonymous_counter_++);
         
-        auto block = std::make_unique<DataBlockNode>(label, bytes);
+        auto block = std::make_unique<DataBlockNode>(label, sized_bytes);
         graph_->add_data_block(std::move(block));
         
         // TODO: Need to handle inline data differently - it should be in code segment

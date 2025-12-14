@@ -80,6 +80,17 @@ namespace assembler {
     bool SymbolTable::set_address(const std::string& name, uint32_t address) {
         auto it = symbols_.find(name);
         if (it == symbols_.end()) {
+            // Auto-create symbol for anonymous data blocks (e.g., __anon_0)
+            if (name.find("__anon_") == 0) {
+                Symbol symbol;
+                symbol.name = name;
+                symbol.type = SymbolType::INLINE_DATA;
+                symbol.scope = SymbolScope::GLOBAL;
+                symbol.address = address;
+                symbol.address_resolved = true;
+                symbols_[name] = symbol;
+                return true;
+            }
             return false;
         }
         

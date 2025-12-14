@@ -10,7 +10,7 @@ DATA
 
 CODE
     LD AX, 0            ; Sum accumulator
-    LD BX, array       ; Array pointer
+    LD BX, (array + 2)       ; Array pointer (skip size prefix)
     LDA CX, count      ; Element count
 
 sum_loop:

@@ -104,6 +104,7 @@ namespace assembler {
         std::unique_ptr<LabelNode> parse_label(const std::string& name);
         std::unique_ptr<InstructionNode> parse_instruction(const std::string& mnemonic);
         std::unique_ptr<InlineDataNode> parse_inline_data();
+        std::unique_ptr<InlineDataNode> parse_inline_data_operand();
         std::unique_ptr<OperandNode> parse_operand();
         std::unique_ptr<ExpressionNode> parse_expression();
         std::unique_ptr<ExpressionNode> parse_term();
