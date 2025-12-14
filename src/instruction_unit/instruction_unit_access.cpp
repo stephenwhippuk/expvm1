@@ -21,8 +21,8 @@ word_t InstructionUnit_Accessor::readByte_At_IR() const {
     auto code_ctx = instruction_unit_ref->vmem_unit_->get_context(instruction_unit_ref->code_context_id_);
     auto code_accessor = code_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
     
-    page_t page = ir_value / 256;  // Assuming 256 bytes per page
-    addr_t offset = ir_value % 256;
+    page_t page = ir_value >> 16;  // High 16 bits (64KB pages)
+    addr_t offset = ir_value & 0xFFFF;  // Low 16 bits
     code_accessor->set_page(page);
     
     return code_accessor->read_byte(offset);
@@ -33,8 +33,8 @@ word_t InstructionUnit_Accessor::readWWord_At_IR() const {
     auto code_ctx = instruction_unit_ref->vmem_unit_->get_context(instruction_unit_ref->code_context_id_);
     auto code_accessor = code_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
     
-    page_t page = ir_value / 256;
-    addr_t offset = ir_value % 256;
+    page_t page = ir_value >> 16;  // High 16 bits (64KB pages)
+    addr_t offset = ir_value & 0xFFFF;  // Low 16 bits
     code_accessor->set_page(page);
     
     return code_accessor->read_word(offset);

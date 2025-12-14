@@ -75,6 +75,7 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
         vmem_unit_->set_mode(IVMemUnit::Mode::PROTECTED);
         auto accessor = instruction_unit_->get_accessor(MemAccessMode::READ_WRITE);
         accessor->Load_Program(program);
+        vmem_unit_->set_mode(IVMemUnit::Mode::UNPROTECTED);
     }
 
     void Cpu::run() {
@@ -278,9 +279,9 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
                 
-                // Calculate page and offset
-                page_t page = address / 256; // Assuming 256 bytes per page
-                addr_t offset = address % 256;
+                // Calculate page and offset (64KB pages)
+                page_t page = address >> 16;  // High 16 bits
+                addr_t offset = address & 0xFFFF;  // Low 16 bits
                 data_accessor->set_page(page);
                 
                 word_t value = data_accessor->read_word(offset);
@@ -301,8 +302,8 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 word_t value = reg->get_value();
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
-                page_t page = address / 256;
-                addr_t offset = address % 256;
+                page_t page = address >> 16;  // High 16 bits
+                addr_t offset = address & 0xFFFF;  // Low 16 bits
                 data_accessor->set_page(page);
                 data_accessor->write_word(offset, value);
                 break;
@@ -324,9 +325,9 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 auto reg = get_register_by_code(params[0]);
                 addr32_t address = combine_bytes_to_address(params[1], params[2]);
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
-                auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
-                page_t page = address / 256;
-                addr_t offset = address % 256;
+                auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
+                page_t page = address >> 16;  // High 16 bits
+                addr_t offset = address & 0xFFFF;  // Low 16 bits
                 data_accessor->set_page(page);
                 byte_t value = data_accessor->read_byte(offset);
                 reg->set_high_byte(value);
@@ -339,8 +340,8 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 byte_t value = reg->get_high_byte();
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
-                page_t page = address / 256;
-                addr_t offset = address % 256;
+                page_t page = address >> 16;  // High 16 bits
+                addr_t offset = address & 0xFFFF;  // Low 16 bits
                 data_accessor->set_page(page);
                 data_accessor->write_byte(offset, value);
                 break;
@@ -363,8 +364,8 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 addr32_t address = combine_bytes_to_address(params[1], params[2]);
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
-                page_t page = address / 256;
-                addr_t offset = address % 256;
+                page_t page = address >> 16;  // High 16 bits
+                addr_t offset = address & 0xFFFF;  // Low 16 bits
                 data_accessor->set_page(page);
                 byte_t value = data_accessor->read_byte(offset);
                 reg->set_low_byte(value);
@@ -376,8 +377,8 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 byte_t value = reg->get_low_byte();
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
-                page_t page = address / 256;
-                addr_t offset = address % 256;
+                page_t page = address >> 16;  // High 16 bits
+                addr_t offset = address & 0xFFFF;  // Low 16 bits
                 data_accessor->set_page(page);
                 data_accessor->write_byte(offset, value);
                 break;
@@ -390,8 +391,8 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 addr32_t address = addr_reg->get_value();
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
-                page_t page = address / 256;
-                addr_t offset = address % 256;
+                page_t page = address >> 16;  // High 16 bits
+                addr_t offset = address & 0xFFFF;  // Low 16 bits
                 data_accessor->set_page(page);
                 word_t value = data_accessor->read_word(offset);
                 dest_reg->set_value(value);
@@ -403,8 +404,8 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 addr32_t address = addr_reg->get_value();
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
-                page_t page = address / 256;
-                addr_t offset = address % 256;
+                page_t page = address >> 16;  // High 16 bits
+                addr_t offset = address & 0xFFFF;  // Low 16 bits
                 data_accessor->set_page(page);
                 byte_t value = data_accessor->read_byte(offset);
                 dest_reg->set_high_byte(value);
@@ -416,8 +417,8 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 addr32_t address = addr_reg->get_value();
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
-                page_t page = address / 256;
-                addr_t offset = address % 256;
+                page_t page = address >> 16;  // High 16 bits
+                addr_t offset = address & 0xFFFF;  // Low 16 bits
                 data_accessor->set_page(page);
                 byte_t value = data_accessor->read_byte(offset);
                 dest_reg->set_low_byte(value);

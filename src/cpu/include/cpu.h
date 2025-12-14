@@ -35,6 +35,9 @@ namespace lvm {
         // Access to shared flags
         std::shared_ptr<Flags> get_flags() const { return flags; }
         
+        // Access to context IDs
+        context_id_t get_data_context_id() const { return data_context_id_; }
+        
         void initialize();
         void load_program(const std::vector<byte_t>& program);
         void run();

@@ -36,7 +36,7 @@ namespace assembler {
             current_address += block->size();
         }
         
-        // Code segment starts after data segment
+        // Code segment starts after data segment (flat address space for now)
         code_segment_start_ = current_address;
     }
 

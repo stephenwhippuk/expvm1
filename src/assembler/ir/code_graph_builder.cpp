@@ -77,20 +77,28 @@ namespace assembler {
     }
 
     void CodeGraphBuilder::visit(InstructionNode& node) {
-        // Get opcode for instruction
-        uint8_t opcode = get_opcode_for_instruction(node.mnemonic());
-        
         // Store current instruction mnemonic for operand processing
         current_instruction_mnemonic_ = node.mnemonic();
         
-        // Create instruction node
-        auto instr = std::make_unique<CodeInstructionNode>(node.mnemonic(), opcode);
+        // Create temporary instruction to collect operands first
+        std::vector<InstructionOperand> operands;
         
         // Process operands
         for (auto& operand : node.operands()) {
             current_operand_ = InstructionOperand();
             operand->accept(*this);
-            instr->add_operand(current_operand_);
+            operands.push_back(current_operand_);
+        }
+        
+        // Get opcode with disambiguation based on operand types
+        uint8_t opcode = get_opcode_for_instruction_with_operands(node.mnemonic(), operands);
+        
+        // Create instruction node
+        auto instr = std::make_unique<CodeInstructionNode>(node.mnemonic(), opcode);
+        
+        // Add operands to instruction
+        for (const auto& op : operands) {
+            instr->add_operand(op);
         }
         
         graph_->add_code_node(std::move(instr));
@@ -427,6 +435,50 @@ namespace assembler {
         // For unknown instructions, return 0x00 (NOP)
         // In production, this should log a warning or error
         return 0x00;
+    }
+
+    uint8_t CodeGraphBuilder::get_opcode_for_instruction_with_operands(
+        const std::string& mnemonic, 
+        const std::vector<InstructionOperand>& operands) {
+        
+        std::string upper = mnemonic;
+        std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+        
+        // Disambiguate LDA based on second operand type
+        if (upper == "LDA") {
+            if (operands.size() >= 2 && operands[1].type == InstructionOperand::Type::REGISTER) {
+                // LDA reg, reg (register-indirect addressing)
+                return 0x72;  // OPCODE_LDA_REG_REGADDR_W
+            } else {
+                // LDA reg, address (direct addressing)
+                return 0x09;  // OPCODE_LDA_REG_ADDR_W
+            }
+        }
+        
+        // Disambiguate LDAH based on second operand type
+        if (upper == "LDAH") {
+            if (operands.size() >= 2 && operands[1].type == InstructionOperand::Type::REGISTER) {
+                // LDAH reg, reg (register-indirect addressing)
+                return 0x73;  // OPCODE_LDAH_REG_REGADDR_B
+            } else {
+                // LDAH reg, address (direct addressing)
+                return 0x0B;  // OPCODE_LDAH_REG_ADDR_B
+            }
+        }
+        
+        // Disambiguate LDAL based on second operand type
+        if (upper == "LDAL") {
+            if (operands.size() >= 2 && operands[1].type == InstructionOperand::Type::REGISTER) {
+                // LDAL reg, reg (register-indirect addressing)
+                return 0x74;  // OPCODE_LDAL_REG_REGADDR_B
+            } else {
+                // LDAL reg, address (direct addressing)
+                return 0x0C;  // OPCODE_LDAL_REG_ADDR_B
+            }
+        }
+        
+        // For all other instructions, use base opcode lookup
+        return get_opcode_for_instruction(mnemonic);
     }
 
     bool CodeGraphBuilder::instruction_expects_word_immediate(const std::string& mnemonic) const {

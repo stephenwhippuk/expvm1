@@ -83,6 +83,8 @@ namespace assembler {
         std::vector<uint8_t> inline_data_to_bytes(const InlineDataNode& node);
         std::vector<uint8_t> string_to_bytes(const std::string& str);
         uint8_t get_opcode_for_instruction(const std::string& mnemonic);
+        uint8_t get_opcode_for_instruction_with_operands(const std::string& mnemonic, 
+                                                         const std::vector<InstructionOperand>& operands);
         bool instruction_expects_word_immediate(const std::string& mnemonic) const;
         bool instruction_expects_byte_immediate(const std::string& mnemonic) const;
     };

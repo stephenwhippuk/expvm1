@@ -67,11 +67,10 @@ namespace assembler {
                     
                 case InstructionOperand::Type::ADDRESS:
                 case InstructionOperand::Type::EXPRESSION:
-                    // 32-bit address, little-endian
+                    // For now, emit addresses as 16-bit values (page 0 only)
+                    // TODO: Support full 32-bit addresses when paging is implemented
                     bytes.push_back(static_cast<uint8_t>(operand.address & 0xFF));
                     bytes.push_back(static_cast<uint8_t>((operand.address >> 8) & 0xFF));
-                    bytes.push_back(static_cast<uint8_t>((operand.address >> 16) & 0xFF));
-                    bytes.push_back(static_cast<uint8_t>((operand.address >> 24) & 0xFF));
                     break;
                     
                 case InstructionOperand::Type::REGISTER:
