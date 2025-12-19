@@ -70,7 +70,7 @@ TEST(CodeGraphBuilderTest, SimpleDataSection) {
     EXPECT_FALSE(builder.has_errors());
     EXPECT_EQ(graph->data_blocks().size(), 1);
     EXPECT_EQ(graph->data_blocks()[0]->label(), "HELLO");
-    EXPECT_EQ(graph->data_blocks()[0]->size(), 2);
+    EXPECT_EQ(graph->data_blocks()[0]->size(), 4);  // 2 bytes data + 2 byte size prefix
 }
 
 TEST(CodeGraphBuilderTest, DataArray) {
@@ -89,7 +89,7 @@ TEST(CodeGraphBuilderTest, DataArray) {
     
     ASSERT_NE(graph, nullptr);
     EXPECT_EQ(graph->data_blocks().size(), 1);
-    EXPECT_EQ(graph->data_blocks()[0]->size(), 4);  // 2 words = 4 bytes
+    EXPECT_EQ(graph->data_blocks()[0]->size(), 6);  // 2 words (4 bytes) + 2 byte size prefix
 }
 
 TEST(CodeGraphBuilderTest, SimpleCodeSection) {
@@ -151,11 +151,11 @@ TEST(AddressResolverTest, SimpleDataAddress) {
     EXPECT_TRUE(data1->address_resolved);
     EXPECT_EQ(data1->address, 0x0000);
     
-    // DATA2 should be at 0x0003 (after DATA1's 3 bytes)
+    // DATA2 should be at 0x0005 (after DATA1's 3 bytes + 2 byte size prefix)
     const Symbol* data2 = table.get("DATA2");
     ASSERT_NE(data2, nullptr);
     EXPECT_TRUE(data2->address_resolved);
-    EXPECT_EQ(data2->address, 0x0003);
+    EXPECT_EQ(data2->address, 0x0005);
 }
 
 TEST(AddressResolverTest, CodeAfterData) {
@@ -175,14 +175,14 @@ TEST(AddressResolverTest, CodeAfterData) {
     AddressResolver resolver(table, *graph);
     EXPECT_TRUE(resolver.resolve());
     
-    // Code should start after data (5 bytes)
-    EXPECT_EQ(resolver.code_segment_start(), 5);
+    // Code should start after data (5 bytes + 2 byte size prefix = 7 bytes)
+    EXPECT_EQ(resolver.code_segment_start(), 7);
     
-    // START label should be at 0x0005
+    // START label should be at 0x0007
     const Symbol* start = table.get("START");
     ASSERT_NE(start, nullptr);
     EXPECT_TRUE(start->address_resolved);
-    EXPECT_EQ(start->address, 0x0005);
+    EXPECT_EQ(start->address, 0x0007);
 }
 
 TEST(AddressResolverTest, MultipleLabelAddresses) {
@@ -257,14 +257,14 @@ LOOP:
     const Symbol* hello = table.get("HELLO");
     ASSERT_NE(hello, nullptr);
     EXPECT_EQ(hello->address, 0x0000);
-    EXPECT_EQ(hello->size, 13);
+    EXPECT_EQ(hello->size, 13);  // Symbol size is the data size (without size prefix)
     
-    // Code starts after 13-byte data
-    EXPECT_EQ(resolver.code_segment_start(), 13);
+    // Code starts after data (13 bytes + 2 byte size prefix = 15 bytes)
+    EXPECT_EQ(resolver.code_segment_start(), 15);
     
     const Symbol* start = table.get("START");
     ASSERT_NE(start, nullptr);
-    EXPECT_EQ(start->address, 13);
+    EXPECT_EQ(start->address, 15);
     
     const Symbol* loop = table.get("LOOP");
     ASSERT_NE(loop, nullptr);

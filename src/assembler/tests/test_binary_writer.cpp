@@ -75,8 +75,11 @@ TEST(BinaryWriterTest, DataSegment) {
     offset += 4;
     
     // Check data segment
-    EXPECT_EQ(data_size, 1);
-    EXPECT_EQ(binary[offset], 0x42);
+    EXPECT_EQ(data_size, 3);  // 1 byte data + 2 byte size prefix
+    // First two bytes are size prefix (little-endian: 0x01 0x00)
+    EXPECT_EQ(binary[offset], 0x01);  // Size low byte
+    EXPECT_EQ(binary[offset + 1], 0x00);  // Size high byte
+    EXPECT_EQ(binary[offset + 2], 0x42);  // Actual data
 }
 
 TEST(BinaryWriterTest, CodeSegment) {
@@ -168,11 +171,17 @@ TEST(BinaryWriterTest, CompleteProgram) {
                         (binary[offset + 2] << 16) | (binary[offset + 3] << 24);
     offset += 4;
     
-    // Data segment: 5 bytes (message) + 2 bytes (value) = 7 bytes
-    EXPECT_EQ(data_size, 7);
-    EXPECT_EQ(binary[offset], 0x48);      // 'H'
-    EXPECT_EQ(binary[offset + 5], 0x34);  // value low byte
-    EXPECT_EQ(binary[offset + 6], 0x12);  // value high byte
+    // Data segment: 5 bytes (message) + 2 bytes (value) + 4 bytes (size prefixes) = 11 bytes
+    EXPECT_EQ(data_size, 11);
+    // First block: message with size prefix
+    EXPECT_EQ(binary[offset], 0x05);      // Size prefix low byte (5 bytes)
+    EXPECT_EQ(binary[offset + 1], 0x00);  // Size prefix high byte
+    EXPECT_EQ(binary[offset + 2], 0x48);  // 'H' - first message byte
+    // Second block: value with size prefix
+    EXPECT_EQ(binary[offset + 7], 0x02);  // Size prefix low byte (2 bytes)
+    EXPECT_EQ(binary[offset + 8], 0x00);  // Size prefix high byte
+    EXPECT_EQ(binary[offset + 9], 0x34);  // value low byte
+    EXPECT_EQ(binary[offset + 10], 0x12); // value high byte
     
     // Verify code segment exists
     offset += data_size;
