@@ -99,6 +99,7 @@ namespace assembler {
         std::unique_ptr<SectionNode> parse_section();
         std::unique_ptr<DataSectionNode> parse_data_section();
         std::unique_ptr<CodeSectionNode> parse_code_section();
+        std::unique_ptr<PageDirectiveNode> parse_page_directive();
         std::unique_ptr<DataDefinitionNode> parse_data_definition();
         std::unique_ptr<ASTNode> parse_code_statement();
         std::unique_ptr<LabelNode> parse_label(const std::string& name);

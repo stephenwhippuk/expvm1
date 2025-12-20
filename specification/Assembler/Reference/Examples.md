@@ -16,7 +16,8 @@ This document provides complete, working example programs for the Pendragon asse
 8. [Conditional Logic](#conditional-logic)
 9. [Memory Operations](#memory-operations)
 10. [Bit Manipulation](#bit-manipulation)
-11. [Advanced: Sorting Algorithm](#advanced-sorting-algorithm)
+11. [Memory Paging](#memory-paging)
+12. [Advanced: Sorting Algorithm](#advanced-sorting-algorithm)
 
 ---
 
@@ -1705,7 +1706,303 @@ loop:
 
 ---
 
-## Debugging Tips
+## Memory Paging
+
+### Learning Objectives
+- Understanding memory pages
+- Using PAGE directive to organize data
+- Automatic PAGE instruction injection
+- Using IN keyword with inline data
+- Managing data across multiple pages
+
+### Code
+
+```assembly
+; ========================================
+; Memory Paging Example
+; Demonstrates organizing data into pages
+; ========================================
+
+DATA
+    ; Data with no PAGE directive goes to page 0 (default)
+    control_flags: DW [0x0001]
+    status_word: DW [0x0000]
+    
+    ; Graphics data on page 1
+    PAGE graphics_data
+    sprite_width: DW [16]
+    sprite_height: DW [16]
+    sprite_pixels: DB [
+        0x00, 0xFF, 0xFF, 0x00,
+        0xFF, 0x00, 0x00, 0xFF,
+        0xFF, 0x00, 0x00, 0xFF,
+        0x00, 0xFF, 0xFF, 0x00
+    ]
+    
+    ; Sound data on page 2
+    PAGE sound_data
+    sample_rate: DW [44100]
+    sample_count: DW [1000]
+    audio_buffer: DW [100, 200, 300, 400, 500]
+    
+    ; More graphics data (returning to existing page)
+    PAGE graphics_data
+    palette: DB [0x00, 0x11, 0x22, 0x33, 0x44, 0x55]
+
+CODE
+start:
+    ; Access data from different pages
+    ; Assembler automatically injects PAGE instructions
+    
+    ; Access page 0 data (default page - no PAGE injection needed)
+    LDA AX, control_flags
+    
+    ; Access page 1 data (graphics_data)
+    ; Assembler injects: PAGE 1
+    LDA BX, sprite_width
+    LDA CX, sprite_height
+    
+    ; Access page 2 data (sound_data)
+    ; Assembler injects: PAGE 2
+    LDA DX, sample_rate
+    
+    ; Access page 1 again
+    ; Assembler injects: PAGE 1
+    LDAB EX, (palette + 2)
+    
+    ; Using inline data with IN keyword
+    ; Assembler injects: PAGE 1
+    LD AX, DW [640, 480] IN graphics_data
+    LDA BX, AX          ; Load width (640)
+    
+    ; Assembler injects: PAGE 2
+    LD CX, DW [16, 8] IN sound_data
+    LDA DX, CX          ; Load channel count (16)
+    
+    HALT
+```
+
+### Explanation
+
+#### 1. PAGE Directive
+
+```assembly
+DATA
+    PAGE graphics_data    ; Declare a named page
+    sprite: DB [1, 2, 3]  ; This data belongs to graphics_data page
+```
+
+- `PAGE page_name` declares a new page or switches to an existing one
+- All data definitions after `PAGE` belong to that page
+- Page numbers are assigned sequentially (1, 2, 3, ...) in order of first appearance
+- Page 0 is reserved for data without a PAGE directive
+
+#### 2. Automatic PAGE Injection
+
+The assembler tracks which page each data symbol belongs to:
+
+```assembly
+DATA
+    PAGE page1
+    var1: DW [100]    ; On page 1
+    
+    PAGE page2
+    var2: DW [200]    ; On page 2
+
+CODE
+    LDA AX, var1      ; Assembler injects: PAGE 1
+    LDA BX, var2      ; Assembler injects: PAGE 2
+    LDA CX, var1      ; Assembler injects: PAGE 1 (switching back)
+    LDA DX, var2      ; Assembler injects: PAGE 2
+```
+
+**Optimization**: The assembler only injects PAGE when switching between pages:
+
+```assembly
+CODE
+    LDA AX, var1      ; Inject: PAGE 1
+    LDA BX, var1      ; No injection (already on page 1)
+    ADD AX, BX        ; No injection (not accessing memory)
+    LDA CX, var1      ; No injection (still on page 1)
+```
+
+**Control Flow Considerations**: After jumps and subroutine calls, the assembler cannot know which page is active:
+
+```assembly
+DATA
+    PAGE graphics
+    sprite1: DW [10]
+    sprite2: DW [20]
+    
+    PAGE sound
+    sample1: DW [30]
+
+CODE
+start:
+    ; Access sprite1 - inject PAGE graphics
+    LDA AX, sprite1
+    
+    ; Access sprite2 - no injection (already on graphics page)
+    LDA BX, sprite2
+    
+    ; Call subroutine - page state becomes UNKNOWN
+    CALL play_sound
+    
+    ; Access sprite1 again - inject PAGE graphics
+    ; (Required because we don't know what page play_sound left us on)
+    LDA CX, sprite1
+    
+    HALT
+
+play_sound:
+    ; Access sample1 - inject PAGE sound
+    LDA AX, sample1
+    
+    ; Access sample1 again - no injection (still on sound page)
+    LDA BX, sample1
+    
+    RET              ; Returns - caller doesn't know current page
+```
+
+The assembler invalidates page tracking after:
+- `CALL` instructions (subroutines may change the page)
+- `JMP`, `JPNZ`, `JPZ`, etc. (jump targets may be on different pages)
+- Labels (multiple code paths may converge with different page states)
+
+This ensures correctness at the cost of potentially injecting extra PAGE instructions after control flow operations.
+
+#### 3. IN Keyword for Inline Data
+
+Inline data can specify its page:
+
+```assembly
+DATA
+    PAGE fast_mem
+    PAGE slow_mem
+
+CODE
+    ; Place constants on fast_mem page
+    LD AX, DW [100, 200, 300] IN fast_mem
+    
+    ; Place lookup table on slow_mem page
+    LD BX, DB [10, 20, 30, 40] IN slow_mem
+    
+    ; Without IN, defaults to page 0
+    LD CX, DW [500, 600]
+```
+
+#### 4. Manual PAGE Instructions
+
+You can manually use PAGE instructions, though it's rarely needed:
+
+```assembly
+CODE
+    PAGE 1            ; Explicit page switch
+    LDA AX, var1      ; Access data on page 1
+    
+    LD BX, 2
+    PAGE BX           ; Dynamic page switch using register
+    LDA CX, var2      ; Access data (must be on page 2)
+```
+
+### Expected Behavior
+
+When executed:
+1. Loads control flags from page 0
+2. Switches to page 1 (graphics_data), loads sprite dimensions
+3. Switches to page 2 (sound_data), loads sample rate
+4. Switches back to page 1, loads palette color
+5. Loads inline data from appropriate pages
+6. Halts successfully
+
+### Use Cases
+
+**1. Organizing Related Data**
+```assembly
+DATA
+    PAGE player_data
+    player_x: DW [100]
+    player_y: DW [100]
+    player_hp: DW [100]
+    
+    PAGE enemy_data
+    enemy_x: DW [200]
+    enemy_y: DW [150]
+    enemy_hp: DW [50]
+```
+
+**2. Memory Banking**
+```assembly
+DATA
+    PAGE bank0
+    ; Frequently accessed data
+    frame_counter: DW [0]
+    input_state: DW [0]
+    
+    PAGE bank1
+    ; Graphics resources
+    tileset: DB [...]
+    
+    PAGE bank2
+    ; Audio resources
+    music_data: DB [...]
+```
+
+**3. Testing Different Memory Regions**
+```assembly
+DATA
+    PAGE fast_ram
+    cache_data: DW [...]
+    
+    PAGE slow_ram
+    archive_data: DW [...]
+```
+
+### Common Patterns
+
+**Pattern 1: Page-Local Processing**
+```assembly
+CODE
+    ; Process all graphics data (stays on page 1)
+    LDA AX, sprite_width      ; PAGE 1 injected
+    LDA BX, sprite_height     ; No PAGE (already on page 1)
+    MUL AX, BX                ; Calculate sprite size
+    
+    ; Process all sound data (stays on page 2)
+    LDA CX, sample_rate       ; PAGE 2 injected
+    LDA DX, sample_count      ; No PAGE (already on page 2)
+```
+
+**Pattern 2: Copying Between Pages**
+```assembly
+CODE
+    LDA AX, source_page1      ; PAGE 1 injected
+    STA AX, dest_page2        ; PAGE 2 injected (for store)
+```
+
+### Important Notes
+
+1. **Page 0 is Default**: Data without `PAGE` directive goes to page 0
+2. **Automatic Tracking**: Assembler tracks current page during code generation
+3. **No Overhead**: Multiple accesses to same page don't inject extra PAGE instructions
+4. **Context Parameter**: PAGE instructions include context (always 0 currently, reserved for future use)
+5. **Page Limit**: 16-bit page numbers support 0-65535 pages
+
+### Debugging Paging
+
+To see injected PAGE instructions, use verbose assembly output:
+```bash
+./asm program.asm -o program.bin -v
+```
+
+This shows:
+- Which pages are declared
+- Page numbers assigned
+- Where PAGE instructions are injected
+
+---
+
+## Advanced: Sorting Algorithm
 
 ### 1. Start Small
 

@@ -15,7 +15,7 @@ namespace assembler {
     }
 
     bool SymbolTable::define(const std::string& name, SymbolType type, 
-                             size_t line, size_t column) {
+                             size_t line, size_t column, uint16_t page_number) {
         auto it = symbols_.find(name);
         
         // If symbol already defined, check if it was previously undefined (forward ref)
@@ -28,6 +28,7 @@ namespace assembler {
             it->second.type = type;
             it->second.defined_line = line;
             it->second.defined_column = column;
+            it->second.page_number = page_number;
             return true;
         }
         
@@ -37,6 +38,7 @@ namespace assembler {
         symbol.type = type;
         symbol.defined_line = line;
         symbol.defined_column = column;
+        symbol.page_number = page_number;
         
         symbols_[name] = symbol;
         return true;

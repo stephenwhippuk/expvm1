@@ -318,6 +318,7 @@ LOOP:
     SymbolTable table;
     SemanticAnalyzer analyzer(table);
     
+    
     EXPECT_TRUE(analyzer.analyze(*ast));
     EXPECT_FALSE(analyzer.has_errors()) << "Errors found:\n";
     for (const auto& err : analyzer.errors()) {
@@ -335,3 +336,85 @@ LOOP:
     EXPECT_EQ(hello->size, 13);
     EXPECT_GE(hello->references.size(), 1);
 }
+
+// PAGE directive tests
+TEST(SemanticAnalyzerTest, PageDirectiveDefaultPage) {
+    Lexer lexer("DATA\nvar1: DB [1, 2, 3]\n\nCODE\n    HALT\n");
+    Parser parser(lexer);
+    auto ast = parser.parse();
+    ASSERT_NE(ast, nullptr);
+    
+    SymbolTable table;
+    SemanticAnalyzer analyzer(table);
+    
+    EXPECT_TRUE(analyzer.analyze(*ast));
+    EXPECT_FALSE(analyzer.has_errors());
+    
+    const Symbol* var1 = table.get("var1");
+    ASSERT_NE(var1, nullptr);
+    EXPECT_EQ(var1->page_number, 0);  // Default page
+}
+
+TEST(SemanticAnalyzerTest, PageDirectiveMultiplePages) {
+    Lexer lexer("DATA\nPAGE page1\nvar1: DB [1, 2, 3]\nPAGE page2\nvar2: DW [0x100]\n\nCODE\n    HALT\n");
+    Parser parser(lexer);
+    auto ast = parser.parse();
+    ASSERT_NE(ast, nullptr);
+    
+    SymbolTable table;
+    SemanticAnalyzer analyzer(table);
+    
+    EXPECT_TRUE(analyzer.analyze(*ast));
+    EXPECT_FALSE(analyzer.has_errors());
+    
+    const Symbol* var1 = table.get("var1");
+    ASSERT_NE(var1, nullptr);
+    EXPECT_EQ(var1->page_number, 1);
+    
+    const Symbol* var2 = table.get("var2");
+    ASSERT_NE(var2, nullptr);
+    EXPECT_EQ(var2->page_number, 2);
+}
+
+TEST(SemanticAnalyzerTest, PageDirectiveDuplicateName) {
+    Lexer lexer("DATA\nPAGE page1\nvar1: DB [1]\nPAGE page1\nvar2: DB [2]\n\nCODE\n    HALT\n");
+    Parser parser(lexer);
+    auto ast = parser.parse();
+    ASSERT_NE(ast, nullptr);
+    
+    SymbolTable table;
+    SemanticAnalyzer analyzer(table);
+    
+    EXPECT_FALSE(analyzer.analyze(*ast));
+    EXPECT_TRUE(analyzer.has_errors());
+    
+    const auto& errors = analyzer.errors();
+    ASSERT_GT(errors.size(), 0);
+    EXPECT_NE(errors[0].message.find("Duplicate PAGE"), std::string::npos);
+}
+
+TEST(SemanticAnalyzerTest, PageDirectiveSizeValidation) {
+    // Create data that exceeds 64KB on one page
+    std::string code = "DATA\nPAGE bigpage\n";
+    // Create 65537 bytes (32769 words * 2 bytes) - exceeds 64KB by 1 byte
+    for (int i = 0; i < 32769; i++) {
+        code += "var" + std::to_string(i) + ": DW [" + std::to_string(i) + "]\n";
+    }
+    code += "\nCODE\n    HALT\n";
+    
+    Lexer lexer(code);
+    Parser parser(lexer);
+    auto ast = parser.parse();
+    ASSERT_NE(ast, nullptr);
+    
+    SymbolTable table;
+    SemanticAnalyzer analyzer(table);
+    
+    EXPECT_FALSE(analyzer.analyze(*ast));
+    EXPECT_TRUE(analyzer.has_errors());
+    
+    const auto& errors = analyzer.errors();
+    ASSERT_GT(errors.size(), 0);
+    EXPECT_NE(errors[0].message.find("exceeds maximum size"), std::string::npos);
+}
+

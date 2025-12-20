@@ -1,14 +1,18 @@
 #include "code_graph_builder.h"
+#include "../semantic/semantic_analyzer.h"
 #include <algorithm>
 #include <cctype>
 
 namespace lvm {
 namespace assembler {
 
-    CodeGraphBuilder::CodeGraphBuilder(SymbolTable& symbol_table)
+    CodeGraphBuilder::CodeGraphBuilder(SymbolTable& symbol_table, const SemanticAnalyzer* analyzer)
         : symbol_table_(symbol_table)
+        , semantic_analyzer_(analyzer)
         , in_data_section_(false)
         , in_code_section_(false)
+        , last_page_(0)
+        , page_known_(true)
         , anonymous_counter_(0) {
     }
 
@@ -43,6 +47,11 @@ namespace assembler {
         in_data_section_ = false;
     }
 
+    void CodeGraphBuilder::visit(PageDirectiveNode& node) {
+        // TODO Phase 4: Track page information for code generation
+        // For now, page directives don't affect the control flow graph
+    }
+
     void CodeGraphBuilder::visit(CodeSectionNode& node) {
         in_data_section_ = false;
         in_code_section_ = true;
@@ -67,6 +76,12 @@ namespace assembler {
         
         // Create data block
         auto block = std::make_unique<DataBlockNode>(node.label(), sized_bytes);
+        
+        // If this is a DA (address array), store the label references for resolution
+        if (node.has_label_references()) {
+            block->set_address_references(node.label_references());
+        }
+        
         graph_->add_data_block(std::move(block));
     }
 
@@ -90,8 +105,44 @@ namespace assembler {
             operands.push_back(current_operand_);
         }
         
+        // Check if any operand references a DATA symbol and inject PAGE instruction if needed
+        // Only inject for data symbols (not code labels like CALL/JMP targets)
+        for (const auto& op : operands) {
+            if ((op.type == InstructionOperand::Type::ADDRESS || 
+                 op.type == InstructionOperand::Type::EXPRESSION) && 
+                !op.symbol_name.empty()) {
+                
+                // Look up symbol to get its page number
+                const Symbol* symbol = symbol_table_.get(op.symbol_name);
+                if (symbol && 
+                    (symbol->type == SymbolType::DATA_BYTE || 
+                     symbol->type == SymbolType::DATA_WORD || 
+                     symbol->type == SymbolType::INLINE_DATA)) {
+                    inject_page_instruction_if_needed(symbol->page_number);
+                    // Note: Only inject once per instruction, even if multiple operands
+                    // reference different pages (shouldn't happen in practice)
+                    break;
+                }
+            }
+        }
+        
         // Get opcode with disambiguation based on operand types
         uint8_t opcode = get_opcode_for_instruction_with_operands(node.mnemonic(), operands);
+        
+        // Check mnemonic for special handling
+        std::string upper_mnem = node.mnemonic();
+        std::transform(upper_mnem.begin(), upper_mnem.end(), upper_mnem.begin(), ::toupper);
+        
+        // Special handling for CALL: add return value flag byte (defaults to 0)
+        if (upper_mnem == "CALL") {
+            // CALL instruction format: opcode + address (2 bytes) + flag (1 byte)
+            // Flag = 0: no return value preservation
+            // Flag = 1: preserve return value on stack
+            InstructionOperand flag_op;
+            flag_op.type = InstructionOperand::Type::IMMEDIATE_BYTE;
+            flag_op.immediate_value = 0;  // Default: no return value
+            operands.push_back(flag_op);
+        }
         
         // Create instruction node
         auto instr = std::make_unique<CodeInstructionNode>(node.mnemonic(), opcode);
@@ -102,6 +153,17 @@ namespace assembler {
         }
         
         graph_->add_code_node(std::move(instr));
+        
+        // Invalidate page tracking after instructions that change control flow
+        // After CALL: subroutine may access different pages
+        // After JMP/Jxx: target code may have accessed different pages
+        if (upper_mnem == "CALL" || upper_mnem == "JMP" || 
+            upper_mnem == "JZ" || upper_mnem == "JNZ" || upper_mnem == "JC" || 
+            upper_mnem == "JNC" || upper_mnem == "JS" || upper_mnem == "JNS" || 
+            upper_mnem == "JO" || upper_mnem == "JNO" || upper_mnem == "JPZ" || 
+            upper_mnem == "JPNZ") {
+            page_known_ = false;  // Page state uncertain after control flow change
+        }
     }
 
     void CodeGraphBuilder::visit(OperandNode& node) {
@@ -163,6 +225,18 @@ namespace assembler {
                     sized_bytes.insert(sized_bytes.end(), bytes.begin(), bytes.end());
                     
                     std::string label = "__anon_" + std::to_string(anonymous_counter_++);
+                    
+                    // Determine page number for anonymous data
+                    uint16_t page_number = 0;  // Default page
+                    if (node.inline_data()->has_page_name() && semantic_analyzer_) {
+                        // Look up page number from page name via semantic analyzer
+                        page_number = semantic_analyzer_->get_page_number(node.inline_data()->page_name());
+                    }
+                    
+                    // Add anonymous symbol to symbol table with correct page
+                    symbol_table_.define(label, SymbolType::INLINE_DATA, 
+                                       node.line(), node.column(), page_number);
+                    symbol_table_.set_size(label, sized_bytes.size());
                     
                     auto block = std::make_unique<DataBlockNode>(label, sized_bytes);
                     graph_->add_data_block(std::move(block));
@@ -238,9 +312,69 @@ namespace assembler {
         errors_.emplace_back(message, line, column);
     }
 
+    void CodeGraphBuilder::inject_page_instruction_if_needed(uint16_t target_page) {
+        // Inject PAGE instruction if:
+        // 1. Target page differs from last page, OR
+        // 2. Page state is unknown (after CALL/JMP)
+        if (!page_known_ || target_page != last_page_) {
+            // Create PAGE instruction: opcode 0x1B + page (2 bytes) + context (2 bytes)
+            auto page_instr = std::make_unique<CodeInstructionNode>("PAGE", 0x1B);
+            
+            // Add page operand (16-bit immediate)
+            InstructionOperand page_op;
+            page_op.type = InstructionOperand::Type::IMMEDIATE_WORD;
+            page_op.immediate_value = target_page;
+            page_instr->add_operand(page_op);
+            
+            // Add context operand (16-bit immediate, always 0 for now)
+            InstructionOperand ctx_op;
+            ctx_op.type = InstructionOperand::Type::IMMEDIATE_WORD;
+            ctx_op.immediate_value = 0;
+            page_instr->add_operand(ctx_op);
+            
+            graph_->add_code_node(std::move(page_instr));
+            last_page_ = target_page;
+            page_known_ = true;  // Page state is now known
+        }
+    }
+
     std::vector<uint8_t> CodeGraphBuilder::data_definition_to_bytes(const DataDefinitionNode& node) {
         if (node.is_string()) {
             return string_to_bytes(node.string_data());
+        } else if (node.has_label_references()) {
+            // DA: Address array - emit placeholder addresses that will be resolved later
+            std::vector<uint8_t> bytes;
+            
+            // Get the page of the DA array itself
+            const Symbol* array_symbol = symbol_table_.get(node.label());
+            if (!array_symbol) {
+                throw std::runtime_error("Internal error: DA array symbol not found");
+            }
+            uint16_t array_page = array_symbol->page_number;
+            
+            for (const auto& label_ref : node.label_references()) {
+                // Look up referenced label
+                const Symbol* target_symbol = symbol_table_.get(label_ref);
+                if (!target_symbol) {
+                    throw std::runtime_error("DA: Referenced label '" + label_ref + 
+                                           "' not found in '" + node.label() + "'");
+                }
+                
+                // Validate: label must be on same page as DA array
+                if (target_symbol->page_number != array_page) {
+                    throw std::runtime_error("DA: Label '" + label_ref + 
+                                           "' (page " + std::to_string(target_symbol->page_number) + 
+                                           ") must be on same page as array '" + node.label() + 
+                                           "' (page " + std::to_string(array_page) + ")");
+                }
+                
+                // Emit placeholder address (will be resolved by address_resolver)
+                // For now, emit symbol reference as 0x0000 - address_resolver will fill it in
+                bytes.push_back(0x00);
+                bytes.push_back(0x00);
+            }
+            
+            return bytes;
         } else {
             std::vector<uint8_t> bytes;
             bool is_word = (node.type() == DataDefinitionNode::Type::WORD);

@@ -723,6 +723,8 @@ CODE
 
 ## Memory Management
 
+Memory management instructions control paging and stack frame operations.
+
 ### PAGE - Set Memory Page
 
 **Variant 1 - Immediate**: 0x1B  
@@ -730,18 +732,67 @@ CODE
 **Operands**: VALUE (2 bytes) or REG  
 **Flags**: None affected
 
-Sets the current memory page for paged memory architectures.
+Sets the current memory page for paged memory architectures. The PAGE instruction switches the active memory page, allowing access to data on different pages.
 
 **Syntax**:
-- `PAGE immediate`
-- `PAGE reg`
+- `PAGE immediate` - Set page to literal value
+- `PAGE reg` - Set page to value in register
+
+**Binary Format**:
+- Immediate variant: `[0x1B] [page_low] [page_high] [context_low] [context_high]` (5 bytes)
+- Register variant: `[0x1C] [reg] [context_low] [context_high]` (4 bytes)
 
 **Usage**:
 ```assembly
+DATA
+    PAGE graphics_data
+    sprite: DB [0x01, 0x02, 0x03]
+    
+    PAGE sound_data
+    sample: DW [1000, 2000, 3000]
+
 CODE
-    PAGE 0x0001         ; Switch to page 1
-    PAGE AX             ; Switch to page in AX
+    ; Manual page switching (usually unnecessary - assembler auto-injects)
+    PAGE 1              ; Switch to page 1
+    LDA AX, sprite      ; Access data on page 1
+    
+    PAGE 2              ; Switch to page 2  
+    LDA BX, sample      ; Access data on page 2
+    
+    ; Using register for dynamic page selection
+    LD CX, 1
+    PAGE CX             ; Switch to page in CX register
 ```
+
+**Automatic Injection**:
+
+The assembler automatically injects PAGE instructions when necessary:
+
+```assembly
+DATA
+    PAGE page1
+    var1: DW [100]
+    
+    PAGE page2
+    var2: DW [200]
+
+CODE
+    ; Assembler automatically injects: PAGE 1
+    LDA AX, var1
+    
+    ; Assembler automatically injects: PAGE 2
+    LDA BX, var2
+    
+    ; No PAGE instruction injected (already on page 2)
+    LDA CX, var2
+```
+
+**Notes**:
+- Page 0 is the default page for data without a `PAGE` directive
+- Pages are 16-bit values (0-65535)
+- Context parameter is typically 0 (reserved for future use)
+- Switching pages does not affect register contents
+- Manual PAGE instructions can override automatic injection if needed
 
 ---
 

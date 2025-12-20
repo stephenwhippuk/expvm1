@@ -175,14 +175,14 @@ TEST(AddressResolverTest, CodeAfterData) {
     AddressResolver resolver(table, *graph);
     EXPECT_TRUE(resolver.resolve());
     
-    // Code should start after data (5 bytes + 2 byte size prefix = 7 bytes)
-    EXPECT_EQ(resolver.code_segment_start(), 7);
+    // Code segment has separate address space starting at 0
+    EXPECT_EQ(resolver.code_segment_start(), 0);
     
-    // START label should be at 0x0007
+    // START label is at offset 0 in code segment
     const Symbol* start = table.get("START");
     ASSERT_NE(start, nullptr);
     EXPECT_TRUE(start->address_resolved);
-    EXPECT_EQ(start->address, 0x0007);
+    EXPECT_EQ(start->address, 0x0000);
 }
 
 TEST(AddressResolverTest, MultipleLabelAddresses) {
@@ -259,12 +259,12 @@ LOOP:
     EXPECT_EQ(hello->address, 0x0000);
     EXPECT_EQ(hello->size, 13);  // Symbol size is the data size (without size prefix)
     
-    // Code starts after data (13 bytes + 2 byte size prefix = 15 bytes)
-    EXPECT_EQ(resolver.code_segment_start(), 15);
+    // Code segment has separate address space starting at 0
+    EXPECT_EQ(resolver.code_segment_start(), 0);
     
     const Symbol* start = table.get("START");
     ASSERT_NE(start, nullptr);
-    EXPECT_EQ(start->address, 15);
+    EXPECT_EQ(start->address, 0);  // First code label is at address 0
     
     const Symbol* loop = table.get("LOOP");
     ASSERT_NE(loop, nullptr);
@@ -309,3 +309,92 @@ TEST(InstructionEncodingTest, PushWord) {
     EXPECT_EQ(bytes[1], 0x34);  // Low byte (little-endian)
     EXPECT_EQ(bytes[2], 0x12);  // High byte
 }
+
+// PAGE directive tests
+TEST(CodeGraphBuilderTest, PageInstructionInjection) {
+    // Program with data on multiple pages
+    Lexer lexer("DATA\nPAGE page1\nvar1: DB [1]\nPAGE page2\nvar2: DB [2]\n\nCODE\n    LDA AX, var1\n    LDA BX, var2\n    HALT\n");
+    Parser parser(lexer);
+    auto ast = parser.parse();
+    ASSERT_NE(ast, nullptr);
+    
+    SymbolTable table;
+    SemanticAnalyzer analyzer(table);
+    ASSERT_TRUE(analyzer.analyze(*ast));
+    
+    CodeGraphBuilder builder(table);
+    auto graph = builder.build(*ast);
+    ASSERT_NE(graph, nullptr);
+    
+    // Verify code nodes: should be PAGE, LDA, PAGE, LDA, HALT
+    const auto& code_nodes = graph->code_nodes();
+    ASSERT_GE(code_nodes.size(), 5);
+    
+    // Check first PAGE instruction
+    auto* page1 = dynamic_cast<CodeInstructionNode*>(code_nodes[0].get());
+    ASSERT_NE(page1, nullptr);
+    EXPECT_EQ(page1->mnemonic(), "PAGE");
+    EXPECT_EQ(page1->opcode(), 0x1B);
+    
+    // Check second PAGE instruction (after first LDA)
+    auto* page2 = dynamic_cast<CodeInstructionNode*>(code_nodes[2].get());
+    ASSERT_NE(page2, nullptr);
+    EXPECT_EQ(page2->mnemonic(), "PAGE");
+}
+
+TEST(CodeGraphBuilderTest, PageInstructionNotInjectedForSamePage) {
+    // Two references to same page should only inject PAGE once
+    Lexer lexer("DATA\nPAGE page1\nvar1: DB [1]\nvar2: DB [2]\n\nCODE\n    LDA AX, var1\n    LDA BX, var2\n    HALT\n");
+    Parser parser(lexer);
+    auto ast = parser.parse();
+    ASSERT_NE(ast, nullptr);
+    
+    SymbolTable table;
+    SemanticAnalyzer analyzer(table);
+    ASSERT_TRUE(analyzer.analyze(*ast));
+    
+    CodeGraphBuilder builder(table);
+    auto graph = builder.build(*ast);
+    ASSERT_NE(graph, nullptr);
+    
+    // Verify code nodes: should be PAGE, LDA, LDA (no second PAGE), HALT
+    const auto& code_nodes = graph->code_nodes();
+    ASSERT_GE(code_nodes.size(), 4);
+    
+    // First node should be PAGE
+    auto* page1 = dynamic_cast<CodeInstructionNode*>(code_nodes[0].get());
+    ASSERT_NE(page1, nullptr);
+    EXPECT_EQ(page1->mnemonic(), "PAGE");
+    
+    // Second node should be LDA (not PAGE)
+    auto* lda1 = dynamic_cast<CodeInstructionNode*>(code_nodes[1].get());
+    ASSERT_NE(lda1, nullptr);
+    EXPECT_EQ(lda1->mnemonic(), "LDA");
+}
+
+TEST(CodeGraphBuilderTest, PageInstructionEncoding) {
+    // Test that PAGE instruction encodes correctly
+    CodeInstructionNode page_instr("PAGE", 0x1B);
+    
+    // Page number = 1
+    InstructionOperand page_op;
+    page_op.type = InstructionOperand::Type::IMMEDIATE_WORD;
+    page_op.immediate_value = 1;
+    page_instr.add_operand(page_op);
+    
+    // Context = 0
+    InstructionOperand ctx_op;
+    ctx_op.type = InstructionOperand::Type::IMMEDIATE_WORD;
+    ctx_op.immediate_value = 0;
+    page_instr.add_operand(ctx_op);
+    
+    auto bytes = page_instr.encode();
+    
+    ASSERT_EQ(bytes.size(), 5);
+    EXPECT_EQ(bytes[0], 0x1B);  // Opcode
+    EXPECT_EQ(bytes[1], 0x01);  // Page low byte
+    EXPECT_EQ(bytes[2], 0x00);  // Page high byte
+    EXPECT_EQ(bytes[3], 0x00);  // Context low byte
+    EXPECT_EQ(bytes[4], 0x00);  // Context high byte
+}
+

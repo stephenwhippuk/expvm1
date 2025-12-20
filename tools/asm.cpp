@@ -112,7 +112,7 @@ int main(int argc, char* argv[]) {
         
         // Pass 3: Build code graph
         if (verbose) std::cout << "Pass 3: Building code graph..." << std::endl;
-        CodeGraphBuilder builder(symbol_table);
+        CodeGraphBuilder builder(symbol_table, &analyzer);
         auto graph = builder.build(*ast);
         
         if (builder.has_errors()) {

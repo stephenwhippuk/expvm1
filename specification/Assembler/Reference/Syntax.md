@@ -211,14 +211,195 @@ coordinates: DW [100, 200, 300]     ; Array of words
 addresses: DW [0x0000, 0x1000, 0x2000]  ; Address table
 ```
 
+### DA - Define Address Array
+
+Defines an array of addresses (pointers/references). Each address is stored as a 16-bit word.
+
+**Purpose**: Create lookup tables, function pointer arrays, or data structure references.
+
+**Important Constraint**: All referenced labels **must** be on the same page as the DA array itself.
+
+#### Syntax
+
+```assembly
+DATA
+    PAGE my_page
+    target1: DW [100]
+    target2: DW [200]
+    target3: DW [300]
+    
+    ; DA array referencing labels on the same page
+    address_table: DA [target1, target2, target3]
+```
+
+#### Usage Examples
+
+**Function/Handler Table**:
+```assembly
+DATA
+    PAGE handlers
+    handler_idle: DW [0x0000]
+    handler_move: DW [0x0001]
+    handler_attack: DW [0x0002]
+    
+    ; Dispatch table
+    event_handlers: DA [handler_idle, handler_move, handler_attack]
+
+CODE
+    ; Load handler address from table
+    LD BX, 2                    ; Select handler index
+    LDA AX, (event_handlers + BX)  ; Get address from table
+    ; Use AX to access handler data
+```
+
+**Data Structure References**:
+```assembly
+DATA
+    PAGE entities
+    player: DW [100, 200, 50]   ; x, y, health
+    enemy1: DW [300, 150, 30]
+    enemy2: DW [400, 180, 30]
+    
+    ; Reference array
+    all_entities: DA [player, enemy1, enemy2]
+```
+
+#### Error: Cross-Page References
+
+This will **fail** to assemble:
+
+```assembly
+DATA
+    PAGE page1
+    target1: DW [100]
+    
+    PAGE page2
+    target2: DW [200]
+    
+    ; ERROR: target1 (page 1) and target2 (page 2) are on different pages!
+    bad_table: DA [target1, target2]
+```
+
+Error message: `DA: Label 'target2' (page 2) must be on same page as array 'bad_table' (page 1)`
+
+#### DA vs DW
+
+| Feature | DW | DA |
+|---------|----|----|
+| **Purpose** | Store numeric values | Store label addresses |
+| **Syntax** | `DW [100, 200]` | `DA [label1, label2]` |
+| **Values** | Literal numbers | Label identifiers |
+| **Cross-page** | No restriction | Must be same page |
+| **Size** | 2 bytes per value | 2 bytes per address |
+
 ### Data Definition Rules
 
 1. **Label Required**: Every definition must have a label
 2. **Brackets Required**: Data values must be enclosed in `[...]`
-3. **Type Enforcement**: DB takes 8-bit values, DW takes 16-bit values
+3. **Type Enforcement**: 
+   - DB takes 8-bit values
+   - DW takes 16-bit values
+   - DA takes label identifiers
 4. **Range Checking**: Values must fit in their type (0-255 for DB, 0-65535 for DW)
 5. **Comma Separation**: Array elements separated by commas
 6. **No Mixing**: Cannot mix strings and numeric arrays in a single definition
+7. **DA Same-Page Rule**: All labels in a DA array must be on the same page as the array
+
+## Memory Pages
+
+The assembler supports memory paging, allowing data to be organized into logical pages. This is useful for:
+- Organizing large data segments
+- Memory banking in constrained environments
+- Logical separation of different data types
+
+### PAGE Directive
+
+The `PAGE` directive declares a named memory page in the DATA section. All subsequent data definitions belong to that page until another `PAGE` directive is encountered.
+
+**Syntax**: `PAGE page_name`
+
+**Example**:
+```assembly
+DATA
+    ; Data with no PAGE directive goes to page 0 (default page)
+    default_var: DW [100]
+    
+    PAGE graphics_data
+    sprite1: DB [0x01, 0x02, 0x03]
+    sprite2: DB [0x04, 0x05, 0x06]
+    
+    PAGE sound_data
+    sample1: DW [1000, 2000, 3000]
+    sample2: DW [4000, 5000, 6000]
+    
+    PAGE graphics_data  ; Can return to previous page
+    sprite3: DB [0x07, 0x08, 0x09]
+```
+
+### Page Numbering
+
+- **Page 0**: Default page for data without a `PAGE` directive
+- **Named Pages**: Automatically assigned sequential numbers (1, 2, 3, ...) in order of first appearance
+- **Page Numbers**: 16-bit values (0-65535)
+- **Page Names**: Must follow identifier rules (letters, digits, underscores)
+
+### Automatic PAGE Instruction Injection
+
+The assembler automatically injects `PAGE` instructions in the code when accessing data from different pages:
+
+```assembly
+DATA
+    PAGE page1
+    var1: DW [100]
+    
+    PAGE page2
+    var2: DW [200]
+
+CODE
+    LDA AX, var1        ; Assembler injects: PAGE 1 before this
+    LDA BX, var2        ; Assembler injects: PAGE 2 before this
+    LDA CX, var1        ; Assembler injects: PAGE 1 before this
+```
+
+**Rules**:
+- PAGE instruction injected only when switching between pages
+- Consecutive accesses to same page do not inject redundant PAGE instructions
+- Applies to both labeled data and inline data with `IN` keyword
+- Manual `PAGE` instructions can be used but are typically unnecessary
+
+### IN Keyword for Inline Data
+
+Inline data (anonymous data blocks) can specify their page using the `IN` keyword:
+
+**Syntax**: `LD reg, DB/DW [data] IN page_name`
+
+**Example**:
+```assembly
+DATA
+    PAGE page1
+    PAGE page2
+
+CODE
+    ; Inline data on page1
+    LD AX, DW [100, 200, 300] IN page1
+    
+    ; Inline data on page2
+    LD BX, DB [10, 20, 30] IN page2
+    
+    ; Inline data without IN goes to page 0 (default)
+    LD CX, DW [400, 500]
+```
+
+**Behavior**:
+- Creates anonymous data block on specified page
+- Assembler injects PAGE instruction before accessing the data
+- If `IN` is omitted, inline data goes to page 0 (default)
+- Page name must be declared with `PAGE` directive in DATA section
+
+**Use Cases**:
+- Organizing temporary data by context
+- Keeping related constants together
+- Testing page switching without declaring data section entries
 
 ## Instructions
 
@@ -299,6 +480,7 @@ CODE
 - Data placed in data segment
 - Instruction receives the address of the data
 - Equivalent to creating labeled data and using the label
+- Default page: Page 0 (unless `IN` keyword specifies otherwise)
 
 **Use Cases**:
 - One-time constant tables
@@ -309,6 +491,33 @@ CODE
 **Note**: Each inline data definition creates a separate block, even if identical. For reusable data, use labeled definitions in the DATA section.
 
 **Size Prefix**: Like all data blocks, inline data has a 2-byte size prefix. Access actual data at offset +2 from the returned address.
+
+**Page Specification with IN Keyword**:
+
+Inline data can be placed on a specific memory page using the `IN` keyword:
+
+```assembly
+DATA
+    PAGE fast_memory
+    PAGE slow_memory
+
+CODE
+    ; Place inline data on fast_memory page
+    LD AX, DW [100, 200, 300] IN fast_memory
+    
+    ; Place inline data on slow_memory page
+    LD BX, DB [10, 20, 30] IN slow_memory
+    
+    ; Without IN, defaults to page 0
+    LD CX, DW [400, 500]
+```
+
+**IN Keyword Rules**:
+- Syntax: `DB/DW [data] IN page_name`
+- Page name must be declared with `PAGE` directive in DATA section
+- If page name is invalid, inline data goes to page 0
+- Assembler automatically injects `PAGE` instruction before access
+- Works with both DB and DW inline data
 
 **Rules:**
 - Case insensitive for hex digits (`0xFF` = `0xff`)

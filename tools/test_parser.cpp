@@ -28,10 +28,15 @@ public:
         print_indent();
         std::cout << "DATA Section:\n";
         indent_++;
-        for (auto& def : node.definitions()) {
-            def->accept(*this);
+        for (const auto& item : node.items()) {
+            item->accept(*this);
         }
         indent_--;
+    }
+    
+    void visit(PageDirectiveNode& node) override {
+        print_indent();
+        std::cout << "PAGE: " << node.name() << "\n";
     }
     
     void visit(CodeSectionNode& node) override {
@@ -247,6 +252,9 @@ int main(int argc, char* argv[]) {
             const Symbol& sym = pair.second;
             std::cout << "  " << sym.name << ": " 
                       << symbol_type_to_string(sym.type);
+            if (sym.page_number > 0) {
+                std::cout << " (page: " << sym.page_number << ")";
+            }
             if (sym.size > 0) {
                 std::cout << " (size: " << sym.size << " bytes)";
             }

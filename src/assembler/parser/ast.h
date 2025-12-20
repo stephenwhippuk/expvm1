@@ -16,6 +16,7 @@ namespace assembler {
     class SectionNode;
     class DataSectionNode;
     class CodeSectionNode;
+    class PageDirectiveNode;
     class DataDefinitionNode;
     class LabelNode;
     class InstructionNode;
@@ -90,18 +91,36 @@ namespace assembler {
     public:
         DataSectionNode() : SectionNode(Type::DATA) {}
         
-        void add_definition(std::unique_ptr<DataDefinitionNode> def) {
-            definitions_.push_back(std::move(def));
+        void add_item(std::unique_ptr<ASTNode> item) {
+            items_.push_back(std::move(item));
         }
         
-        const std::vector<std::unique_ptr<DataDefinitionNode>>& definitions() const {
-            return definitions_;
+        const std::vector<std::unique_ptr<ASTNode>>& items() const {
+            return items_;
         }
+        
+        // Legacy accessor for compatibility - implemented in ast.cpp
+        std::vector<DataDefinitionNode*> definitions() const;
         
         void accept(ASTVisitor& visitor) override;
         
     private:
-        std::vector<std::unique_ptr<DataDefinitionNode>> definitions_;
+        std::vector<std::unique_ptr<ASTNode>> items_;  // PageDirectiveNode or DataDefinitionNode
+    };
+
+    /**
+     * Page directive (PAGE pageName)
+     */
+    class PageDirectiveNode : public ASTNode {
+    public:
+        explicit PageDirectiveNode(const std::string& name) : name_(name) {}
+        
+        const std::string& name() const { return name_; }
+        
+        void accept(ASTVisitor& visitor) override;
+        
+    private:
+        std::string name_;
     };
 
     /**
@@ -130,7 +149,7 @@ namespace assembler {
      */
     class DataDefinitionNode : public ASTNode {
     public:
-        enum class Type { BYTE, WORD };  // DB or DW
+        enum class Type { BYTE, WORD, ADDRESS };  // DB, DW, or DA
         
         DataDefinitionNode(const std::string& label, Type type)
             : label_(label), type_(type) {}
@@ -150,6 +169,15 @@ namespace assembler {
             is_string_ = false;
         }
         
+        // For DA [label1, label2, ...]
+        void add_label_reference(const std::string& label) {
+            label_references_.push_back(label);
+            is_string_ = false;
+        }
+        
+        bool has_label_references() const { return !label_references_.empty(); }
+        const std::vector<std::string>& label_references() const { return label_references_; }
+        
         bool is_string() const { return is_string_; }
         const std::string& string_data() const { return string_data_; }
         const std::vector<uint64_t>& numeric_data() const { return numeric_data_; }
@@ -162,6 +190,7 @@ namespace assembler {
         bool is_string_ = false;
         std::string string_data_;
         std::vector<uint64_t> numeric_data_;
+        std::vector<std::string> label_references_;  // For DA
     };
 
     /**
@@ -320,6 +349,11 @@ namespace assembler {
         const std::string& string_data() const { return string_data_; }
         const std::vector<uint64_t>& numeric_data() const { return numeric_data_; }
         
+        // Page specification for inline data (optional)
+        void set_page_name(const std::string& page) { page_name_ = page; }
+        const std::string& page_name() const { return page_name_; }
+        bool has_page_name() const { return !page_name_.empty(); }
+        
         void accept(ASTVisitor& visitor) override;
         
     private:
@@ -327,6 +361,7 @@ namespace assembler {
         std::string string_data_;
         std::vector<uint64_t> numeric_data_;
         bool is_string_;
+        std::string page_name_;  // Optional page name for inline data
     };
 
     /**
@@ -340,6 +375,7 @@ namespace assembler {
         virtual void visit(ProgramNode& node) = 0;
         virtual void visit(DataSectionNode& node) = 0;
         virtual void visit(CodeSectionNode& node) = 0;
+        virtual void visit(PageDirectiveNode& node) = 0;
         virtual void visit(DataDefinitionNode& node) = 0;
         virtual void visit(LabelNode& node) = 0;
         virtual void visit(InstructionNode& node) = 0;

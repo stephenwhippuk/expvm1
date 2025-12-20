@@ -19,6 +19,9 @@ namespace assembler {
         KEYWORD_CODE,           // CODE
         KEYWORD_DB,             // DB (define byte)
         KEYWORD_DW,             // DW (define word)
+        KEYWORD_DA,             // DA (define address array)
+        KEYWORD_PAGE,           // PAGE (page directive)
+        KEYWORD_IN,             // IN (inline data page specification)
         
         // Identifiers and literals
         IDENTIFIER,             // Labels, variable names
@@ -61,7 +64,7 @@ namespace assembler {
             : type(t), lexeme(lex), value(lex), number_value(0), line(ln), column(col) {}
             
         bool is_keyword() const {
-            return type >= TokenType::KEYWORD_DATA && type <= TokenType::KEYWORD_DW;
+            return type >= TokenType::KEYWORD_DATA && type <= TokenType::KEYWORD_IN;
         }
         
         bool is_operator() const {

@@ -221,7 +221,7 @@ namespace lvm {
      if (opcode == OPCODE_JPNS_ADDR) return 2;
      if (opcode == OPCODE_JPO_ADDR) return 2;
      if (opcode == OPCODE_JPNO_ADDR) return 2;
-     if (opcode == OPCODE_CALL_ADDR) return 2;
+     if (opcode == OPCODE_CALL_ADDR) return 3;  // address (2 bytes) + flag (1 byte)
      if (opcode == OPCODE_RET) return 0;
      // ALU - Addition
      if (opcode == OPCODE_ADD_IMM_W) return 2;

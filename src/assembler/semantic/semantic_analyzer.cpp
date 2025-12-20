@@ -8,7 +8,9 @@ namespace assembler {
     SemanticAnalyzer::SemanticAnalyzer(SymbolTable& symbol_table)
         : symbol_table_(symbol_table)
         , in_data_section_(false)
-        , in_code_section_(false) {
+        , in_code_section_(false)
+        , current_page_(0)
+        , current_page_address_(0) {
     }
 
     bool SemanticAnalyzer::analyze(ProgramNode& program) {
@@ -38,8 +40,9 @@ namespace assembler {
         in_data_section_ = true;
         in_code_section_ = false;
         
-        for (auto& def : node.definitions()) {
-            def->accept(*this);
+        // Visit all items (page directives and data definitions)
+        for (const auto& item : node.items()) {
+            item->accept(*this);
         }
         
         in_data_section_ = false;
@@ -56,26 +59,79 @@ namespace assembler {
         in_code_section_ = false;
     }
 
-    void SemanticAnalyzer::visit(DataDefinitionNode& node) {
-        // Define symbol in symbol table
-        SymbolType type = (node.type() == DataDefinitionNode::Type::BYTE) 
-                         ? SymbolType::DATA_BYTE 
-                         : SymbolType::DATA_WORD;
+    void SemanticAnalyzer::visit(PageDirectiveNode& node) {
+        // Check if page name is already used
+        if (page_names_.find(node.name()) != page_names_.end()) {
+            error("Duplicate PAGE directive '" + node.name() + "'", 
+                  node.line(), node.column());
+            return;
+        }
         
-        if (!symbol_table_.define(node.label(), type, node.line(), node.column())) {
+        // Validate that previous page didn't exceed 64KB
+        constexpr uint32_t MAX_PAGE_SIZE = 65536;  // 64KB
+        if (page_sizes_[current_page_] > MAX_PAGE_SIZE) {
+            error("Page " + std::to_string(current_page_) + 
+                  " exceeds maximum size of 64KB (" + 
+                  std::to_string(page_sizes_[current_page_]) + " bytes)",
+                  node.line(), node.column());
+        }
+        
+        // Move to next page
+        current_page_++;
+        current_page_address_ = 0;
+        page_names_[node.name()] = current_page_;
+        page_sizes_[current_page_] = 0;
+    }
+
+    void SemanticAnalyzer::visit(DataDefinitionNode& node) {
+        // Define symbol in symbol table with current page number
+        SymbolType type;
+        if (node.type() == DataDefinitionNode::Type::BYTE) {
+            type = SymbolType::DATA_BYTE;
+        } else if (node.type() == DataDefinitionNode::Type::WORD) {
+            type = SymbolType::DATA_WORD;
+        } else {
+            type = SymbolType::DATA_WORD;  // DA stores addresses as words
+        }
+        
+        if (!symbol_table_.define(node.label(), type, node.line(), node.column(), current_page_)) {
             error("Duplicate definition of '" + node.label() + "'", 
                   node.line(), node.column());
         } else {
-            // Set size
+            // For DA, validate label references and ensure they're on same page
+            if (node.type() == DataDefinitionNode::Type::ADDRESS) {
+                for (const auto& label_ref : node.label_references()) {
+                    // Add reference for later resolution
+                    validate_identifier_reference(label_ref, node.line(), node.column(), 
+                                                 "DA array in '" + node.label() + "'");
+                    
+                    // Note: We'll validate same-page constraint during code generation
+                    // when all symbols have been defined and their pages are known
+                }
+            }
+            
+            // Calculate and set size
             uint32_t size = calculate_data_size(node);
             symbol_table_.set_size(node.label(), size);
+            
+            // Track page size and address
+            page_sizes_[current_page_] += size;
+            current_page_address_ += size;
+            
+            // Validate page size doesn't exceed 64KB
+            constexpr uint32_t MAX_PAGE_SIZE = 65536;
+            if (page_sizes_[current_page_] > MAX_PAGE_SIZE) {
+                error("Page " + std::to_string(current_page_) + 
+                      " exceeds maximum size of 64KB", 
+                      node.line(), node.column());
+            }
         }
     }
 
     void SemanticAnalyzer::visit(LabelNode& node) {
-        // Define label in symbol table
+        // Define label in symbol table with current page (labels in code section use page 0)
         if (!symbol_table_.define(node.name(), SymbolType::LABEL, 
-                                  node.line(), node.column())) {
+                                  node.line(), node.column(), current_page_)) {
             error("Duplicate label '" + node.name() + "'", 
                   node.line(), node.column());
         }
@@ -197,6 +253,9 @@ namespace assembler {
     uint32_t SemanticAnalyzer::calculate_data_size(const DataDefinitionNode& node) {
         if (node.is_string()) {
             return static_cast<uint32_t>(node.string_data().length());
+        } else if (node.has_label_references()) {
+            // DA: each address is a word (2 bytes)
+            return static_cast<uint32_t>(node.label_references().size() * 2);
         } else {
             uint32_t element_size = (node.type() == DataDefinitionNode::Type::BYTE) ? 1 : 2;
             return static_cast<uint32_t>(node.numeric_data().size() * element_size);

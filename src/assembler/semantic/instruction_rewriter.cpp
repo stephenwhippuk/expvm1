@@ -17,6 +17,10 @@ namespace assembler {
         // No rewriting needed in data section
     }
 
+    void InstructionRewriter::visit(PageDirectiveNode& node) {
+        // No rewriting needed for page directives
+    }
+
     void InstructionRewriter::visit(CodeSectionNode& node) {
         for (auto& stmt : node.statements()) {
             stmt->accept(*this);

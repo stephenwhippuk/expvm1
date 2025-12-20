@@ -33,7 +33,7 @@ namespace assembler {
                     total += 2;
                     break;
                 case InstructionOperand::Type::ADDRESS:
-                    total += 4;  // 32-bit address
+                    total += 2;  // 16-bit address (matches encode() implementation)
                     break;
                 case InstructionOperand::Type::REGISTER:
                     // Registers are encoded as 1 byte
@@ -41,7 +41,7 @@ namespace assembler {
                     break;
                 case InstructionOperand::Type::EXPRESSION:
                     // Complex expressions become addresses after resolution
-                    total += 4;
+                    total += 2;  // 16-bit address (matches encode() implementation)
                     break;
             }
         }

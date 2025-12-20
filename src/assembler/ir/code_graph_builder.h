@@ -10,6 +10,9 @@
 namespace lvm {
 namespace assembler {
 
+    // Forward declarations
+    class SemanticAnalyzer;
+
     /**
      * Code graph builder error
      */
@@ -38,7 +41,7 @@ namespace assembler {
      */
     class CodeGraphBuilder : public ASTVisitor {
     public:
-        explicit CodeGraphBuilder(SymbolTable& symbol_table);
+        explicit CodeGraphBuilder(SymbolTable& symbol_table, const SemanticAnalyzer* analyzer = nullptr);
         
         /**
          * Build code graph from AST
@@ -56,6 +59,7 @@ namespace assembler {
         void visit(ProgramNode& node) override;
         void visit(DataSectionNode& node) override;
         void visit(CodeSectionNode& node) override;
+        void visit(PageDirectiveNode& node) override;
         void visit(DataDefinitionNode& node) override;
         void visit(LabelNode& node) override;
         void visit(InstructionNode& node) override;
@@ -65,6 +69,7 @@ namespace assembler {
         
     private:
         SymbolTable& symbol_table_;
+        const SemanticAnalyzer* semantic_analyzer_;  // For page name lookup (optional)
         std::unique_ptr<CodeGraph> graph_;
         std::vector<CodeGraphError> errors_;
         
@@ -74,11 +79,16 @@ namespace assembler {
         InstructionOperand current_operand_;
         std::string current_instruction_mnemonic_;  // Track current instruction
         
+        // Page tracking for PAGE instruction injection
+        uint16_t last_page_;  // Last page number emitted (0 = default)
+        bool page_known_;     // False after CALL/JMP - forces PAGE injection on next access
+        
         // Anonymous data counter
         uint32_t anonymous_counter_;
         
         // Helper methods
         void error(const std::string& message, size_t line, size_t column);
+        void inject_page_instruction_if_needed(uint16_t target_page);
         std::vector<uint8_t> data_definition_to_bytes(const DataDefinitionNode& node);
         std::vector<uint8_t> inline_data_to_bytes(const InlineDataNode& node);
         std::vector<uint8_t> string_to_bytes(const std::string& str);

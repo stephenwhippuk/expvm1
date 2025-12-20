@@ -246,8 +246,11 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
         auto accessor = instruction_unit_->get_accessor(MemAccessMode::READ_WRITE);
         switch(opcode) {
             case OPCODE_CALL_ADDR: {
-                addr_t address = combine_bytes_to_address(params[0], params[1]);
-                accessor->call_subroutine(address, params[2]);
+                // Address is encoded in little-endian (low byte first)
+                addr_t address = combine_bytes_to_address(params[1], params[0]);
+                // CALL instruction has 3 bytes: 2 for address, 1 for return value flag
+                bool return_value = (params.size() > 2) ? (params[2] != 0) : false;
+                accessor->call_subroutine(address, return_value);
                 break;
             }
             case OPCODE_RET: {
@@ -519,13 +522,26 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
             }
 
             case OPCODE_PAGE_IMM_CTX: {
-                // Context switching is now handled at accessor level
-                // This opcode is deprecated with the new memory system
+                // Set page for data context via accessor
+                // params[0-1]: page number (16-bit little-endian)
+                // params[2-3]: context id (16-bit little-endian) - currently ignored
+                page_t page = combine_bytes_to_word(params[1], params[0]);
+                
+                auto data_ctx = vmem_unit_->get_context(data_context_id_);
+                auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
+                data_accessor->set_page(page);
                 break;
             }
             case OPCODE_PAGE_REG_CTX: {
-                // Context switching is now handled at accessor level
-                // This opcode is deprecated with the new memory system
+                // Set page from register for data context via accessor
+                // params[0]: register code
+                // params[1-2]: context id (16-bit little-endian) - currently ignored
+                auto reg = get_register_by_code(params[0]);
+                page_t page = reg->get_value();
+                
+                auto data_ctx = vmem_unit_->get_context(data_context_id_);
+                auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
+                data_accessor->set_page(page);
                 break;
             }
             default:

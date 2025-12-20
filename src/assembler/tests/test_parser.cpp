@@ -51,9 +51,10 @@ TEST(ParserTest, DataDefinitionString) {
     
     auto* section = dynamic_cast<DataSectionNode*>(ast->sections()[0].get());
     ASSERT_NE(section, nullptr);
-    ASSERT_EQ(section->definitions().size(), 1);
+    auto defs = section->definitions();
+    ASSERT_EQ(defs.size(), 1);
     
-    auto& def = section->definitions()[0];
+    auto* def = defs[0];
     EXPECT_EQ(def->label(), "HELLO");
     EXPECT_EQ(def->type(), DataDefinitionNode::Type::BYTE);
     EXPECT_TRUE(def->is_string());
@@ -70,9 +71,10 @@ TEST(ParserTest, DataDefinitionArray) {
     
     auto* section = dynamic_cast<DataSectionNode*>(ast->sections()[0].get());
     ASSERT_NE(section, nullptr);
-    ASSERT_EQ(section->definitions().size(), 1);
+    auto defs = section->definitions();
+    ASSERT_EQ(defs.size(), 1);
     
-    auto& def = section->definitions()[0];
+    auto* def = defs[0];
     EXPECT_EQ(def->label(), "VALUES");
     EXPECT_EQ(def->type(), DataDefinitionNode::Type::WORD);
     EXPECT_FALSE(def->is_string());

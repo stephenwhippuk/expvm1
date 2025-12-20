@@ -10,8 +10,11 @@ namespace assembler {
             case TokenType::END_OF_LINE: return "END_OF_LINE";
             case TokenType::KEYWORD_DATA: return "DATA";
             case TokenType::KEYWORD_CODE: return "CODE";
+            case TokenType::KEYWORD_PAGE: return "PAGE";
+            case TokenType::KEYWORD_IN: return "IN";
             case TokenType::KEYWORD_DB: return "DB";
             case TokenType::KEYWORD_DW: return "DW";
+            case TokenType::KEYWORD_DA: return "DA";
             case TokenType::IDENTIFIER: return "IDENTIFIER";
             case TokenType::REGISTER: return "REGISTER";
             case TokenType::NUMBER: return "NUMBER";

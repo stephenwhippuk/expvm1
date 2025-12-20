@@ -46,6 +46,7 @@ namespace assembler {
         
         const std::string& label() const { return label_; }
         const std::vector<uint8_t>& data() const { return data_; }
+        std::vector<uint8_t>& mutable_data() { return data_; }
         
         uint32_t size() const override {
             return static_cast<uint32_t>(data_.size());
@@ -53,9 +54,20 @@ namespace assembler {
         
         bool is_anonymous() const { return label_.empty(); }
         
+        // For DA (address arrays) - store label references for later resolution
+        void set_address_references(const std::vector<std::string>& refs) {
+            address_references_ = refs;
+            is_address_array_ = true;
+        }
+        
+        bool is_address_array() const { return is_address_array_; }
+        const std::vector<std::string>& address_references() const { return address_references_; }
+        
     private:
         std::string label_;
         std::vector<uint8_t> data_;
+        bool is_address_array_ = false;
+        std::vector<std::string> address_references_;
     };
 
     /**

@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <unordered_map>
 
 namespace lvm {
 namespace assembler {
@@ -57,10 +58,20 @@ namespace assembler {
          */
         bool has_errors() const { return !errors_.empty(); }
         
+        /**
+         * Get page number by page name (for inline data IN clause)
+         * Returns 0 if page name not found
+         */
+        uint16_t get_page_number(const std::string& page_name) const {
+            auto it = page_names_.find(page_name);
+            return (it != page_names_.end()) ? it->second : 0;
+        }
+        
         // Visitor methods
         void visit(ProgramNode& node) override;
         void visit(DataSectionNode& node) override;
         void visit(CodeSectionNode& node) override;
+        void visit(PageDirectiveNode& node) override;
         void visit(DataDefinitionNode& node) override;
         void visit(LabelNode& node) override;
         void visit(InstructionNode& node) override;
@@ -75,6 +86,12 @@ namespace assembler {
         // Current context
         bool in_data_section_;
         bool in_code_section_;
+        
+        // Page tracking (for PAGE directive support)
+        uint16_t current_page_;           // Current page number (0-65535)
+        std::unordered_map<uint16_t, uint32_t> page_sizes_;  // Bytes used per page
+        std::unordered_map<std::string, uint16_t> page_names_; // Page name -> number mapping
+        uint32_t current_page_address_;   // Current address within page (0-65535)
         
         // Helper methods
         void error(const std::string& message, size_t line, size_t column);

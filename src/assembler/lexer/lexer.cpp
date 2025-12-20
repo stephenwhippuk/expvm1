@@ -291,8 +291,11 @@ namespace assembler {
         
         if (upper == "DATA") return TokenType::KEYWORD_DATA;
         if (upper == "CODE") return TokenType::KEYWORD_CODE;
+        if (upper == "PAGE") return TokenType::KEYWORD_PAGE;
+        if (upper == "IN") return TokenType::KEYWORD_IN;
         if (upper == "DB") return TokenType::KEYWORD_DB;
         if (upper == "DW") return TokenType::KEYWORD_DW;
+        if (upper == "DA") return TokenType::KEYWORD_DA;
         
         return TokenType::IDENTIFIER;
     }

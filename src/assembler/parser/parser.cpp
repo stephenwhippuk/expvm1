@@ -152,7 +152,7 @@ namespace assembler {
         
         skip_empty_lines();
         
-        // Parse data definitions until we hit another section or EOF
+        // Parse data definitions and page directives until we hit another section or EOF
         while (!check(TokenType::END_OF_FILE) && !is_at_section_start()) {
             if (check(TokenType::END_OF_LINE)) {
                 advance();
@@ -160,9 +160,18 @@ namespace assembler {
             }
             
             try {
-                auto def = parse_data_definition();
-                if (def) {
-                    section->add_definition(std::move(def));
+                // Check if this is a PAGE directive
+                if (check(TokenType::KEYWORD_PAGE)) {
+                    auto page_dir = parse_page_directive();
+                    if (page_dir) {
+                        section->add_item(std::move(page_dir));
+                    }
+                } else {
+                    // Otherwise it's a data definition
+                    auto def = parse_data_definition();
+                    if (def) {
+                        section->add_item(std::move(def));
+                    }
                 }
             } catch (const ParseError& e) {
                 skip_to_next_line();
@@ -201,8 +210,20 @@ namespace assembler {
         return section;
     }
 
+    std::unique_ptr<PageDirectiveNode> Parser::parse_page_directive() {
+        // PAGE pageName
+        Token page_token = consume(TokenType::KEYWORD_PAGE, "Expected PAGE keyword");
+        Token name_token = consume(TokenType::IDENTIFIER, "Expected page name after PAGE");
+        consume(TokenType::END_OF_LINE, "Expected newline after PAGE directive");
+        
+        auto page_dir = std::make_unique<PageDirectiveNode>(name_token.lexeme);
+        page_dir->set_location(page_token.line, page_token.column);
+        
+        return page_dir;
+    }
+
     std::unique_ptr<DataDefinitionNode> Parser::parse_data_definition() {
-        // IDENTIFIER : DB/DW ...
+        // IDENTIFIER : DB/DW/DA ...
         Token label_token = consume(TokenType::IDENTIFIER, "Expected label");
         consume(TokenType::COLON, "Expected ':' after label");
         
@@ -211,16 +232,29 @@ namespace assembler {
             def_type = DataDefinitionNode::Type::BYTE;
         } else if (match(TokenType::KEYWORD_DW)) {
             def_type = DataDefinitionNode::Type::WORD;
+        } else if (match(TokenType::KEYWORD_DA)) {
+            def_type = DataDefinitionNode::Type::ADDRESS;
         } else {
-            error_at_current("Expected DB or DW");
-            throw ParseError("Expected DB or DW", current_.line, current_.column);
+            error_at_current("Expected DB, DW, or DA");
+            throw ParseError("Expected DB, DW, or DA", current_.line, current_.column);
         }
         
         auto def = std::make_unique<DataDefinitionNode>(label_token.lexeme, def_type);
         def->set_location(label_token.line, label_token.column);
         
+        // DA only supports label arrays
+        if (def_type == DataDefinitionNode::Type::ADDRESS) {
+            consume(TokenType::LEFT_BRACKET, "DA requires array notation [label1, label2, ...]");
+            if (!check(TokenType::RIGHT_BRACKET)) {
+                do {
+                    Token label = consume(TokenType::IDENTIFIER, "Expected label identifier");
+                    def->add_label_reference(label.lexeme);
+                } while (match(TokenType::COMMA));
+            }
+            consume(TokenType::RIGHT_BRACKET, "Expected ']'");
+        }
         // Parse the data: either STRING or [number, ...]
-        if (check(TokenType::STRING)) {
+        else if (check(TokenType::STRING)) {
             def->set_string_data(current_.value);
             advance();
         } else if (match(TokenType::LEFT_BRACKET)) {
@@ -373,6 +407,18 @@ namespace assembler {
         // Inline data: DB/DW as operand (creates anonymous data block)
         if (check(TokenType::KEYWORD_DB) || check(TokenType::KEYWORD_DW)) {
             auto inline_data = parse_inline_data_operand();
+            
+            // Check for optional IN page_name
+            if (match(TokenType::KEYWORD_IN)) {
+                if (!check(TokenType::IDENTIFIER)) {
+                    error("Expected page name after IN keyword");
+                    return nullptr;
+                }
+                std::string page_name = current_.value;
+                advance();
+                inline_data->set_page_name(page_name);
+            }
+            
             auto operand = std::make_unique<OperandNode>(OperandNode::Type::INLINE_DATA);
             operand->set_inline_data(std::move(inline_data));
             operand->set_location(previous_.line, previous_.column);

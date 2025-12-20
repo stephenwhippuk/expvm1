@@ -44,6 +44,9 @@ namespace assembler {
         bool address_resolved;
         uint32_t address;
         
+        // Page information (for PAGE directive support)
+        uint16_t page_number;
+        
         // Size information (for data symbols)
         uint32_t size;
         
@@ -62,6 +65,7 @@ namespace assembler {
             , defined_column(0)
             , address_resolved(false)
             , address(0)
+            , page_number(0)
             , size(0) {}
     };
 
@@ -78,7 +82,7 @@ namespace assembler {
          * @return true if successful, false if already defined
          */
         bool define(const std::string& name, SymbolType type, 
-                   size_t line, size_t column);
+                   size_t line, size_t column, uint16_t page_number = 0);
         
         /**
          * Add a reference to a symbol (creates undefined symbol if doesn't exist)

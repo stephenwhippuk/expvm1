@@ -50,6 +50,7 @@ namespace assembler {
         void resolve_data_addresses();
         void resolve_code_addresses();
         void resolve_operand_addresses();
+        void resolve_address_array(DataBlockNode* block);
         uint32_t resolve_expression(const InstructionOperand& operand);
     };
 

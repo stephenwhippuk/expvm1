@@ -17,6 +17,10 @@ namespace assembler {
         visitor.visit(*this);
     }
 
+    void PageDirectiveNode::accept(ASTVisitor& visitor) {
+        visitor.visit(*this);
+    }
+
     void DataDefinitionNode::accept(ASTVisitor& visitor) {
         visitor.visit(*this);
     }
@@ -39,6 +43,17 @@ namespace assembler {
 
     void InlineDataNode::accept(ASTVisitor& visitor) {
         visitor.visit(*this);
+    }
+
+    // DataSectionNode legacy accessor implementation
+    std::vector<DataDefinitionNode*> DataSectionNode::definitions() const {
+        std::vector<DataDefinitionNode*> defs;
+        for (const auto& item : items_) {
+            if (auto* def = dynamic_cast<DataDefinitionNode*>(item.get())) {
+                defs.push_back(def);
+            }
+        }
+        return defs;
     }
 
 } // namespace assembler

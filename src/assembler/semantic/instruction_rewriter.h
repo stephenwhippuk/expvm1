@@ -23,6 +23,7 @@ namespace assembler {
         void visit(ProgramNode& node) override;
         void visit(DataSectionNode& node) override;
         void visit(CodeSectionNode& node) override;
+        void visit(PageDirectiveNode& node) override;
         void visit(DataDefinitionNode& node) override;
         void visit(LabelNode& node) override;
         void visit(InstructionNode& node) override;
