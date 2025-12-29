@@ -1,0 +1,4 @@
+CODE
+    LD AX, 0x12AA
+    NOTL AX
+    HALT

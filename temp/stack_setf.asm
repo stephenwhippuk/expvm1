@@ -1,0 +1,5 @@
+CODE
+    LD AX, 0x2000
+    PUSH AX
+    SETF 0x2000
+    HALT

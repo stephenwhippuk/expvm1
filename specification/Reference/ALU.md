@@ -95,6 +95,9 @@ public:
     Alu(const Alu& other);
     ~Alu();
     
+    // Accessor for accumulator (following Unit→Handler/Accessor pattern)
+    std::unique_ptr<RegisterAccessor> get_accumulator();
+    
     // IALU interface implementation - Arithmetic operations (16-bit)
     void add(word_t value) override;
     void sub(word_t value) override;
@@ -135,6 +138,11 @@ private:
     void calculate_flags(word_t result, word_t a, word_t b, char operation);
 };
 ```
+
+**Note on Accumulator Access:**
+- `get_accumulator()` returns a `std::unique_ptr<RegisterAccessor>` using move semantics
+- External code must use the accessor to read/write accumulator values
+- Example: `auto acc_accessor = alu->get_accumulator(); acc_accessor->set_value(0x1234);`
 
 ## Usage Examples
 

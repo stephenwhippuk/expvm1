@@ -1,0 +1,5 @@
+CODE
+    LD AX, 0xABCD
+    PUSH AX
+    POP BX
+    HALT

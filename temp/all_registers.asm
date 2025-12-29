@@ -1,0 +1,7 @@
+CODE
+    LD AX, 0x1111
+    LD BX, 0x2222
+    LD CX, 0x3333
+    LD DX, 0x4444
+    LD EX, 0x5555
+    HALT

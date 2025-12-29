@@ -284,6 +284,13 @@ namespace assembler {
             return parse_inline_data();
         }
         
+        // PAGE can be both a directive (in DATA) and an instruction (in CODE)
+        if (check(TokenType::KEYWORD_PAGE)) {
+            Token page_token = current_;
+            advance();
+            return parse_instruction(page_token.lexeme);
+        }
+        
         // Must be identifier (label or instruction)
         if (!check(TokenType::IDENTIFIER)) {
             error_at_current("Expected instruction or label");

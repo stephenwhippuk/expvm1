@@ -1,0 +1,4 @@
+CODE
+    LD AX, 0x1234
+    CPH AX, 0x12
+    HALT

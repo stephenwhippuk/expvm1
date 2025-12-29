@@ -40,6 +40,9 @@ namespace lvm
             void cmp(word_t value) override;
             void cmp_byte(byte_t value) override;
             
+            // Accessor for accumulator register (following Unit->Handler/Accessor pattern)
+            std::unique_ptr<RegisterAccessor> get_accumulator() { return accumulator->get_accessor(); }
+            
         private:
             std::shared_ptr<Register> accumulator;
             void calculate_flags(word_t result, word_t a, word_t b, char operation);

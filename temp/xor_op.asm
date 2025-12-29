@@ -1,0 +1,4 @@
+CODE
+    LD AX, 0xFFFF
+    XOR 0xAAAA
+    HALT

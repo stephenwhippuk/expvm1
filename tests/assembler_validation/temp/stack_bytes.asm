@@ -1,0 +1,7 @@
+CODE
+    LD AX, 0x1234
+    PUSHH AX
+    PUSHL AX
+    POPL BX
+    POPH BX
+    HALT

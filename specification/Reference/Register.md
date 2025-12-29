@@ -6,6 +6,23 @@ The Register class provides 16-bit general-purpose storage with optional flag ma
 
 ## Architecture Overview
 
+### Unit-Handler-Accessor Pattern
+
+The Register unit follows the Unit→Handler/Accessor architectural pattern:
+
+- **Register**: Core unit with private implementation
+- **RegisterAccessor**: Provides controlled access to Register methods
+- All external access to Register must go through `get_accessor()`
+- Accessors use move semantics (`std::unique_ptr`) for ownership
+
+```cpp
+// External code must use accessor pattern
+Register reg;
+auto accessor = reg.get_accessor();
+accessor->set_value(0x1234);
+word_t value = accessor->get_value();
+```
+
 ### Register Structure
 
 ```
@@ -44,6 +61,38 @@ Flags Byte (8-bit):
 
 ## Interface
 
+### RegisterAccessor Class
+
+```cpp
+class RegisterAccessor {
+    // Value access
+    word_t get_value() const;
+    void set_value(word_t value);
+    void clear();
+    
+    // Byte-level access
+    void set_high_byte(byte_t high);
+    void set_low_byte(byte_t low);
+    byte_t get_high_byte() const;
+    byte_t get_low_byte() const;
+    
+    // Flag operations
+    bool has_flags() const;
+    bool set_flag(Flag flag);
+    bool clear_flag(Flag flag);
+    bool is_flag_set(Flag flag) const;
+    
+    // Increment/Decrement
+    void inc();
+    void dec();
+    
+private:
+    RegisterAccessor(Register& reg);  // Private, accessed via Register::get_accessor()
+    Register& register_ref;
+    friend class Register;
+};
+```
+
 ### Register Class
 
 ```cpp
@@ -54,7 +103,13 @@ class Register {
     Register(const Register& other);              // Copy
     ~Register();
     
-    // Full word access
+    // Accessor (primary interface)
+    std::unique_ptr<RegisterAccessor> get_accessor();
+    
+private:
+    friend class RegisterAccessor;
+    
+    // Private implementation (access via RegisterAccessor)
     void set_value(word_t value);
     word_t get_value() const;
     void clear();
@@ -102,7 +157,7 @@ enum class Flag {
 
 ## Usage Examples
 
-### Example 1: Basic Register Operations
+### Example 1: Basic Register Operations (with Accessor)
 
 ```cpp
 #include "register.h"
@@ -110,25 +165,28 @@ enum class Flag {
 // Create register without flags
 Register bx;
 
+// All access must go through accessor
+auto accessor = bx.get_accessor();
+
 // Set full value
-bx.set_value(0x1234);
+accessor->set_value(0x1234);
 
 // Get full value
-word_t value = bx.get_value();  // 0x1234
+word_t value = accessor->get_value();  // 0x1234
 
 // Access individual bytes
-byte_t high = bx.get_high_byte();  // 0x12
-byte_t low = bx.get_low_byte();    // 0x34
+byte_t high = accessor->get_high_byte();  // 0x12
+byte_t low = accessor->get_low_byte();    // 0x34
 
 // Modify individual bytes
-bx.set_low_byte(0x56);
+accessor->set_low_byte(0x56);
 // bx = 0x1256
 
-bx.set_high_byte(0x78);
+accessor->set_high_byte(0x78);
 // bx = 0x7856
 
 // Clear register
-bx.clear();
+accessor->clear();
 // bx = 0x0000
 ```
 
@@ -143,60 +201,62 @@ auto flags = std::make_shared<Flags>();
 
 // Create register with flags
 Register ax(flags);
+auto accessor = ax.get_accessor();
 
 // Check if register has flags
-if (ax.has_flags()) {
+if (accessor->has_flags()) {
     // Can use flag operations
-    ax.set_flag(Flag::ZERO);
-    ax.set_flag(Flag::CARRY);
+    accessor->set_flag(Flag::ZERO);
+    accessor->set_flag(Flag::CARRY);
 }
 
 // Set value and manually update flags
-ax.set_value(0);
-if (ax.get_value() == 0) {
-    ax.set_flag(Flag::ZERO);
+accessor->set_value(0);
+if (accessor->get_value() == 0) {
+    accessor->set_flag(Flag::ZERO);
 }
 
 // Check flag state
-if (ax.is_flag_set(Flag::ZERO)) {
+if (accessor->is_flag_set(Flag::ZERO)) {
     // Zero flag is set
 }
 
 // Clear individual flag
-ax.clear_flag(Flag::CARRY);
+accessor->clear_flag(Flag::CARRY);
 ```
 
 ### Example 3: High/Low Byte Manipulation
 
 ```cpp
 Register ax;
+auto accessor = ax.get_accessor();
 
 // Build word from bytes
-ax.set_low_byte(0xCD);
-ax.set_high_byte(0xAB);
+accessor->set_low_byte(0xCD);
+accessor->set_high_byte(0xAB);
 // ax = 0xABCD
 
 // Extract bytes
-byte_t low = ax.get_low_byte();   // 0xCD
-byte_t high = ax.get_high_byte(); // 0xAB
+byte_t low = accessor->get_low_byte();   // 0xCD
+byte_t high = accessor->get_high_byte(); // 0xAB
 
 // Modify only low byte
-ax.set_value(0x1234);
-ax.set_low_byte(0xFF);
+accessor->set_value(0x1234);
+accessor->set_low_byte(0xFF);
 // ax = 0x12FF (high byte preserved)
 
 // Modify only high byte
-ax.set_value(0x1234);
-ax.set_high_byte(0x00);
+accessor->set_value(0x1234);
+accessor->set_high_byte(0x00);
 // ax = 0x0034 (low byte preserved)
 
 // Swap bytes
 word_t original = 0x1234;
-ax.set_value(original);
-byte_t temp_high = ax.get_high_byte();
-byte_t temp_low = ax.get_low_byte();
-ax.set_high_byte(temp_low);
-ax.set_low_byte(temp_high);
+accessor->set_value(original);
+byte_t temp_high = accessor->get_high_byte();
+byte_t temp_low = accessor->get_low_byte();
+accessor->set_high_byte(temp_low);
+accessor->set_low_byte(temp_high);
 // ax = 0x3412 (bytes swapped)
 ```
 

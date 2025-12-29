@@ -1,0 +1,5 @@
+CODE
+    LD AX, 0xFF00
+    AND 0x00FF
+    OR 0x0F0F
+    HALT

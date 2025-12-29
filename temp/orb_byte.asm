@@ -1,0 +1,4 @@
+CODE
+    LD AX, 0x1200
+    ORB 0x0F
+    HALT

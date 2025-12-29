@@ -14,14 +14,14 @@
 
 namespace lvm {
     enum register_codes {
-        REG_AX = 0x01,
-        REG_BX = 0x02,
-        REG_CX = 0x03,
-        REG_DX = 0x04,
-        REG_EX = 0x05,
-        REG_IR = 0x06,
-        REG_SP = 0x07,
-        REG_SI,
+        REG_AX = 0x00,  // Fixed: Was 0x01, spec defines AX=0
+        REG_BX = 0x01,  // Fixed: Was 0x02, spec defines BX=1
+        REG_CX = 0x02,  // Fixed: Was 0x03, spec defines CX=2
+        REG_DX = 0x03,  // Fixed: Was 0x04, spec defines DX=3
+        REG_EX = 0x04,  // Fixed: Was 0x05, spec defines EX=4
+        REG_IR = 0x05,  // Adjusted from 0x06
+        REG_SP = 0x06,  // Adjusted from 0x07
+        REG_SI = 0x07,  // Adjusted (was implicit next value)
     };
     class Cpu{
     public:
@@ -74,6 +74,7 @@ namespace lvm {
         void execute_and_operation(byte_t opcode, const std::vector<byte_t>& params);
         void execute_or_operation(byte_t opcode, const std::vector<byte_t>& params);
         void execute_xor_operation(byte_t opcode, const std::vector<byte_t>& params);
+        void execute_not_operation(byte_t opcode, const std::vector<byte_t>& params);
         void execute_shift_operation(byte_t opcode, const std::vector<byte_t>& params);
         void execute_rotate_operation(byte_t opcode, const std::vector<byte_t>& params);
         void execute_cmp_operation(byte_t opcode, const std::vector<byte_t>& params);

@@ -1,0 +1,5 @@
+CODE
+    LD AX, 0x1111
+    PUSH AX
+    FLSH
+    HALT

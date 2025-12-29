@@ -20,6 +20,11 @@ Register::~Register() {}
 void Register::set_value(word_t val) {
     value = val;
 }
+
+std::unique_ptr<RegisterAccessor> Register::get_accessor() {
+    return std::unique_ptr<RegisterAccessor>(new RegisterAccessor(*this));
+}
+
 word_t Register::get_value() const {
 
     return value;

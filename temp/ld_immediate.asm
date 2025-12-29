@@ -1,0 +1,3 @@
+CODE
+    LD AX, 0x1234
+    HALT

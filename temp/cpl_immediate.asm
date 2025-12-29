@@ -1,0 +1,4 @@
+CODE
+    LD AX, 0x1234
+    CPL AX, 0x34
+    HALT

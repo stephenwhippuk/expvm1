@@ -1,0 +1,4 @@
+CODE
+    LD AX, 0x5678
+    PUSHL AX
+    HALT

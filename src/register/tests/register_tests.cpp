@@ -7,29 +7,29 @@ using namespace lvm;
 // Test register operations
 TEST(RegisterTest, SetAndGetValue) {
     Register reg;
-    reg.set_value(0x1234);
-    EXPECT_EQ(reg.get_value(), 0x1234);
+    reg.get_accessor()->set_value(0x1234);
+    EXPECT_EQ(reg.get_accessor()->get_value(), 0x1234);
 }
 
 TEST(RegisterTest, HighAndLowBytes) {
     Register reg;
-    reg.set_value(0xABCD);
-    EXPECT_EQ(reg.get_high_byte(), 0xAB);
-    EXPECT_EQ(reg.get_low_byte(), 0xCD);
+    reg.get_accessor()->set_value(0xABCD);
+    EXPECT_EQ(reg.get_accessor()->get_high_byte(), 0xAB);
+    EXPECT_EQ(reg.get_accessor()->get_low_byte(), 0xCD);
 }
 
 TEST(RegisterTest, SetHighByte) {
     Register reg;
-    reg.set_value(0x1234);
-    reg.set_high_byte(0xAB);
-    EXPECT_EQ(reg.get_value(), 0xAB34);
+    reg.get_accessor()->set_value(0x1234);
+    reg.get_accessor()->set_high_byte(0xAB);
+    EXPECT_EQ(reg.get_accessor()->get_value(), 0xAB34);
 }
 
 TEST(RegisterTest, SetLowByte) {
     Register reg;
-    reg.set_value(0x1234);
-    reg.set_low_byte(0xCD);
-    EXPECT_EQ(reg.get_value(), 0x12CD);
+    reg.get_accessor()->set_value(0x1234);
+    reg.get_accessor()->set_low_byte(0xCD);
+    EXPECT_EQ(reg.get_accessor()->get_value(), 0x12CD);
 }
 
 // Test flags
@@ -53,29 +53,29 @@ TEST(RegisterWithFlagsTest, IncrementSetsFlags) {
     auto flags = std::make_shared<Flags>();
     Register reg(flags);
     
-    reg.set_value(0);
-    reg.inc();
-    EXPECT_EQ(reg.get_value(), 1);
-    EXPECT_FALSE(reg.is_flag_set(Flag::ZERO));
+    reg.get_accessor()->set_value(0);
+    reg.get_accessor()->inc();
+    EXPECT_EQ(reg.get_accessor()->get_value(), 1);
+    EXPECT_FALSE(reg.get_accessor()->is_flag_set(Flag::ZERO));
     
-    reg.set_value(0xFFFF);
-    reg.inc();
-    EXPECT_EQ(reg.get_value(), 0);
-    EXPECT_TRUE(reg.is_flag_set(Flag::ZERO));
-    EXPECT_TRUE(reg.is_flag_set(Flag::CARRY));
+    reg.get_accessor()->set_value(0xFFFF);
+    reg.get_accessor()->inc();
+    EXPECT_EQ(reg.get_accessor()->get_value(), 0);
+    EXPECT_TRUE(reg.get_accessor()->is_flag_set(Flag::ZERO));
+    EXPECT_TRUE(reg.get_accessor()->is_flag_set(Flag::CARRY));
 }
 
 TEST(RegisterWithFlagsTest, DecrementSetsFlags) {
     auto flags = std::make_shared<Flags>();
     Register reg(flags);
     
-    reg.set_value(1);
-    reg.dec();
-    EXPECT_EQ(reg.get_value(), 0);
-    EXPECT_TRUE(reg.is_flag_set(Flag::ZERO));
+    reg.get_accessor()->set_value(1);
+    reg.get_accessor()->dec();
+    EXPECT_EQ(reg.get_accessor()->get_value(), 0);
+    EXPECT_TRUE(reg.get_accessor()->is_flag_set(Flag::ZERO));
     
-    reg.set_value(0);
-    reg.dec();
-    EXPECT_EQ(reg.get_value(), 0xFFFF);
-    EXPECT_TRUE(reg.is_flag_set(Flag::CARRY));
+    reg.get_accessor()->set_value(0);
+    reg.get_accessor()->dec();
+    EXPECT_EQ(reg.get_accessor()->get_value(), 0xFFFF);
+    EXPECT_TRUE(reg.get_accessor()->is_flag_set(Flag::CARRY));
 }

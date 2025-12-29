@@ -1,0 +1,3 @@
+CODE
+    NOTB 0xAA
+    HALT

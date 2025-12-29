@@ -1,0 +1,3 @@
+CODE
+    PUSHW 0xABCD
+    HALT

@@ -1,0 +1,5 @@
+CODE
+    LD AX, 0x1234
+    LD BX, 0x0002
+    MLB BX
+    HALT

@@ -1,0 +1,5 @@
+CODE
+    LD AX, 0xFF34
+    LD BX, 0xF000
+    ANH BX
+    HALT

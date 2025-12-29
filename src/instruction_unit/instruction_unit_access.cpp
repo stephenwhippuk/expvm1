@@ -13,11 +13,11 @@ InstructionUnit_Accessor::~InstructionUnit_Accessor() {}
 // Read Access Methods
 
 word_t InstructionUnit_Accessor::get_IR() const {
-    return instruction_unit_ref->ir_register->get_value();
+    return instruction_unit_ref->ir_register->get_accessor()->get_value();
 }
 
 word_t InstructionUnit_Accessor::readByte_At_IR() const {
-    addr32_t ir_value = instruction_unit_ref->ir_register->get_value();
+    addr32_t ir_value = instruction_unit_ref->ir_register->get_accessor()->get_value();
     auto code_ctx = instruction_unit_ref->vmem_unit_->get_context(instruction_unit_ref->code_context_id_);
     auto code_accessor = code_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
     
@@ -29,7 +29,7 @@ word_t InstructionUnit_Accessor::readByte_At_IR() const {
 }
 
 word_t InstructionUnit_Accessor::readWWord_At_IR() const {
-    addr32_t ir_value = instruction_unit_ref->ir_register->get_value();
+    addr32_t ir_value = instruction_unit_ref->ir_register->get_accessor()->get_value();
     auto code_ctx = instruction_unit_ref->vmem_unit_->get_context(instruction_unit_ref->code_context_id_);
     auto code_accessor = code_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
     

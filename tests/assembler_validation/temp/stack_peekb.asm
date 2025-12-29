@@ -1,0 +1,5 @@
+CODE
+    LD AX, 0x1234
+    PUSH AX
+    PEEKB BX, 0
+    HALT

@@ -31,21 +31,21 @@ std::unique_ptr<InstructionUnit_Accessor> InstructionUnit::get_accessor(MemAcces
 }
 
 void InstructionUnit::set_IR(word_t value) {
-    ir_register->set_value(value);
+    ir_register->get_accessor()->set_value(value);
 }   
 void InstructionUnit::advance_IR(word_t offset) {
-    word_t current = ir_register->get_value();
-    ir_register->set_value(current + offset);
+    word_t current = ir_register->get_accessor()->get_value();
+    ir_register->get_accessor()->set_value(current + offset);
 }
 
 void InstructionUnit::jump_to_address(addr_t address) {
-    ir_register->set_value(address);
+    ir_register->get_accessor()->set_value(address);
 }
 
 void InstructionUnit::jump_to_address_conditional(addr_t address, Flag flag, bool condition) {
     bool flag_set = flags->is_set(flag);
     if (flag_set == condition) {
-        ir_register->set_value(address);
+        ir_register->get_accessor()->set_value(address);
     }
 }
 
@@ -76,12 +76,12 @@ void InstructionUnit::call_subroutine(addr_t address, bool with_return_value){
     auto stack_accessor = stack_.get_accessor(MemAccessMode::READ_WRITE);
 
     ReturnStackItem item;
-    item.return_address = ir_register->get_value();
+    item.return_address = ir_register->get_accessor()->get_value();
     item.frame_pointer = stack_accessor->get_fp();
 
     return_stack.push_back(item);
 
-    ir_register->set_value(address);
+    ir_register->get_accessor()->set_value(address);
 
     if (with_return_value) {
         stack_accessor->push_byte(1);
@@ -102,7 +102,7 @@ void InstructionUnit::return_from_subroutine() {
     ReturnStackItem item = return_stack.back();
     return_stack.pop_back();
 
-    ir_register->set_value(item.return_address);
+    ir_register->get_accessor()->set_value(item.return_address);
     
     auto stack_accessor = stack_.get_accessor(MemAccessMode::READ_WRITE);
     byte_t has_return_value = stack_accessor->peek_byte_from_frame(0);

@@ -6,16 +6,16 @@ namespace lvm {
 namespace assembler {
 
     // Helper function to convert register name to byte code
-    // NOTE: CPU uses 1-based register codes (AX=1, BX=2, etc.)
+    // Fixed: Spec defines AX=0, BX=1, CX=2, DX=3, EX=4 (was incorrectly 1-based)
     static uint8_t register_name_to_code(const std::string& name) {
         std::string upper = name;
         std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
         
-        if (upper == "AX" || upper == "AL" || upper == "AH") return 0x01;
-        if (upper == "BX" || upper == "BL" || upper == "BH") return 0x02;
-        if (upper == "CX" || upper == "CL" || upper == "CH") return 0x03;
-        if (upper == "DX" || upper == "DL" || upper == "DH") return 0x04;
-        if (upper == "EX" || upper == "EL" || upper == "EH") return 0x05;
+        if (upper == "AX" || upper == "AL" || upper == "AH") return 0x00;
+        if (upper == "BX" || upper == "BL" || upper == "BH") return 0x01;
+        if (upper == "CX" || upper == "CL" || upper == "CH") return 0x02;
+        if (upper == "DX" || upper == "DL" || upper == "DH") return 0x03;
+        if (upper == "EX" || upper == "EL" || upper == "EH") return 0x04;
         
         throw std::runtime_error("Unknown register name: " + name);
     }

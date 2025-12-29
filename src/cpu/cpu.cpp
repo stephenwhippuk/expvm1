@@ -6,6 +6,8 @@
 #include "vmemunit.h"
 #include "alu.h"
 #include "context.h"
+#include <iostream>
+#include <iomanip>
 
 namespace lvm {
 
@@ -60,6 +62,8 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
             case REG_DX: return DX;
             case REG_EX: return EX;
             default:
+                std::cerr << "[CPU ERROR] Invalid register code: " << (int)code 
+                          << " (0x" << std::hex << (int)code << std::dec << ")\n";
                 throw std::runtime_error("Invalid register code: " + std::to_string(code));
         }
     }
@@ -141,6 +145,7 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
         }
 
         if(opcode >= OPCODE_JMP_ADDR && opcode <= OPCODE_JPNO_ADDR) {
+            // Address in little-endian: params[0]=low, params[1]=high
             execute_jump(opcode, combine_bytes_to_address(params[0], params[1]));
             return;
         } 
@@ -150,49 +155,53 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
             return;
         }
 
-        if((opcode >= OPCODE_ADD_REG_W && opcode <= OPCODE_ADL_REG_B)) {
+        if((opcode >= OPCODE_ADD_IMM_W && opcode <= OPCODE_ADL_REG_B)) {
             execute_add_operation(opcode, params);
             return;
         }
 
-        if((opcode >= OPCODE_SUB_REG_W && opcode <= OPCODE_SBL_REG_B)) {
+        if((opcode >= OPCODE_SUB_IMM_W && opcode <= OPCODE_SBL_REG_B)) {
             execute_sub_operation(opcode, params);
             return;
         }
 
-        if((opcode >= OPCODE_MUL_REG_W && opcode <= OPCODE_MLL_REG_B)) {
+        if((opcode >= OPCODE_MUL_IMM_W && opcode <= OPCODE_MLL_REG_B)) {
             execute_mul_operation(opcode, params);
             return;
         }
 
-        if((opcode >= OPCODE_DIV_REG_W && opcode <= OPCODE_DVL_REG_B)) {
+        if((opcode >= OPCODE_DIV_IMM_W && opcode <= OPCODE_DVL_REG_B)) {
             execute_div_operation(opcode, params);
             return;
         }
 
-        if((opcode >= OPCODE_REM_REG_W && opcode <= OPCODE_RML_REG_B)) {
+        if((opcode >= OPCODE_REM_IMM_W && opcode <= OPCODE_RML_REG_B)) {
             execute_rem_operation(opcode, params);
             return;
         }
 
-        if((opcode >= OPCODE_AND_REG_W && opcode <= OPCODE_ANL_REG_B)) {
+        if((opcode >= OPCODE_AND_IMM_W && opcode <= OPCODE_ANL_REG_B)) {
             execute_and_operation(opcode, params);
             return;
         }
 
-        if((opcode >= OPCODE_OR_REG_W && opcode <= OPCODE_ORL_REG_B)) {
+        if((opcode >= OPCODE_OR_IMM_W && opcode <= OPCODE_ORL_REG_B)) {
             execute_or_operation(opcode, params);
             return;
         }
-        if((opcode >= OPCODE_XOR_REG_W && opcode <= OPCODE_XOL_REG_B)) {
+        if((opcode >= OPCODE_XOR_IMM_W && opcode <= OPCODE_XOL_REG_B)) {
             execute_xor_operation(opcode, params);
             return;
         }
-        if((opcode >= OPCODE_SHL_REG_W && opcode <= OPCODE_SHRL_REG_B)) {
+        if((opcode >= OPCODE_NOT_IMM_W && opcode <= OPCODE_NOTL_REG_B)) {
+            execute_not_operation(opcode, params);
+            return;
+        }
+        if((opcode >= OPCODE_SHL_IMM_W && opcode <= OPCODE_SHRL_REG_B)) {
             execute_shift_operation(opcode, params);
             return;
         }
-        if((opcode >= OPCODE_ROL_REG_W && opcode <= OPCODE_RORL_REG_B)) {
+        if((opcode >= OPCODE_ROL_IMM_W && opcode <= OPCODE_RORL_REG_B)) {
             execute_rotate_operation(opcode, params);
             return;
         }
@@ -202,6 +211,7 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
         }
         // Advance instruction pointer by param count
         // now parse and execute the instructions based on opcode and params
+        std::cerr << "[CPU ERROR] Unknown opcode: 0x" << std::hex << (int)opcode << std::dec << "\n";
         throw runtime_error("Unknown opcode encountered");
 
     }
@@ -231,10 +241,10 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 accessor->Jump_To_Address_Conditional(address, Flag::SIGN, false);
                 break;
             case OPCODE_JPO_ADDR:
-                accessor->Jump_To_Address_Conditional(address, Flag::OVERFLOW, false);
+                accessor->Jump_To_Address_Conditional(address, Flag::OVERFLOW, true);
                 break;
             case OPCODE_JPNO_ADDR:
-                accessor->Jump_To_Address_Conditional(address, Flag::OVERFLOW, true);
+                accessor->Jump_To_Address_Conditional(address, Flag::OVERFLOW, false);
                 break;
             default:
                 throw runtime_error("Invalid jump opcode");
@@ -247,7 +257,7 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
         switch(opcode) {
             case OPCODE_CALL_ADDR: {
                 // Address is encoded in little-endian (low byte first)
-                addr_t address = combine_bytes_to_address(params[1], params[0]);
+                addr_t address = combine_bytes_to_address(params[0], params[1]);
                 // CALL instruction has 3 bytes: 2 for address, 1 for return value flag
                 bool return_value = (params.size() > 2) ? (params[2] != 0) : false;
                 accessor->call_subroutine(address, return_value);
@@ -271,8 +281,9 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
             
             case OPCODE_LD_REG_IMM_W: {
                 auto reg = get_register_by_code(params[0]);
+                // params[1] is low byte, params[2] is high byte (little-endian)
                 word_t value = combine_bytes_to_word(params[1], params[2]);
-                reg->set_value(value);
+                reg->get_accessor()->set_value(value);
                 break;
             }
 
@@ -288,21 +299,36 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 data_accessor->set_page(page);
                 
                 word_t value = data_accessor->read_word(offset);
-                reg->set_value(value);
+                reg->get_accessor()->set_value(value);
+                break;
+            }
+
+            case OPCODE_LDAB_REG_ADDR_B: {
+                auto reg = get_register_by_code(params[0]);
+                addr32_t address = combine_bytes_to_address(params[1], params[2]);
+                auto data_ctx = vmem_unit_->get_context(data_context_id_);
+                auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
+                
+                page_t page = address >> 16;  // High 16 bits
+                addr_t offset = address & 0xFFFF;  // Low 16 bits
+                data_accessor->set_page(page);
+                
+                byte_t value = data_accessor->read_byte(offset);
+                reg->get_accessor()->set_low_byte(value);  // LDAB loads into low byte
                 break;
             }
 
             case OPCODE_LD_REG_REG_W: {
                 auto dest_reg = get_register_by_code(params[0]);
                 auto src_reg = get_register_by_code(params[1]);
-                dest_reg->set_value(src_reg->get_value());
+                dest_reg->get_accessor()->set_value(src_reg->get_accessor()->get_value());
                 break;
             }
 
             case OPCODE_STA_ADDR_REG_W: {
                 addr32_t address = combine_bytes_to_address(params[0], params[1]);
                 auto reg = get_register_by_code(params[2]);
-                word_t value = reg->get_value();
+                word_t value = reg->get_accessor()->get_value();
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
                 page_t page = address >> 16;  // High 16 bits
@@ -315,13 +341,13 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
             
                 auto reg = get_register_by_code(params[0]);
                 byte_t value = params[1];
-                reg->set_high_byte(value);
+                reg->get_accessor()->set_high_byte(value);
                 break;
             }
             case OPCODE_LDH_REG_REG_B: {
                 auto dest_reg = get_register_by_code(params[0]);
                 auto src_reg = get_register_by_code(params[1]);
-                dest_reg->set_high_byte(src_reg->get_high_byte());
+                dest_reg->get_accessor()->set_high_byte(src_reg->get_accessor()->get_high_byte());
                 break;
             }
             case OPCODE_LDAH_REG_ADDR_B: {
@@ -333,14 +359,14 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 addr_t offset = address & 0xFFFF;  // Low 16 bits
                 data_accessor->set_page(page);
                 byte_t value = data_accessor->read_byte(offset);
-                reg->set_high_byte(value);
+                reg->get_accessor()->set_high_byte(value);
                 break;
             }
 
             case OPCODE_STAH_ADDR_REG_B: {
                 addr32_t address = combine_bytes_to_address(params[0], params[1]);
                 auto reg = get_register_by_code(params[2]);
-                byte_t value = reg->get_high_byte();
+                byte_t value = reg->get_accessor()->get_high_byte();
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
                 page_t page = address >> 16;  // High 16 bits
@@ -353,13 +379,13 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
             case OPCODE_LDL_REG_IMM_B: {
                 auto reg = get_register_by_code(params[0]);
                 byte_t value = params[1];
-                reg->set_low_byte(value);
+                reg->get_accessor()->set_low_byte(value);
                 break;
             }
             case OPCODE_LDL_REG_REG_B: {
                 auto dest_reg = get_register_by_code(params[0]);
                 auto src_reg = get_register_by_code(params[1]);
-                dest_reg->set_low_byte(src_reg->get_low_byte());
+                dest_reg->get_accessor()->set_low_byte(src_reg->get_accessor()->get_low_byte());
                 break;
             }
             case OPCODE_LDAL_REG_ADDR_B: {
@@ -371,13 +397,13 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 addr_t offset = address & 0xFFFF;  // Low 16 bits
                 data_accessor->set_page(page);
                 byte_t value = data_accessor->read_byte(offset);
-                reg->set_low_byte(value);
+                reg->get_accessor()->set_low_byte(value);
                 break;
             }       
             case OPCODE_STAL_ADDR_REG_B: {
                 addr32_t address = combine_bytes_to_address(params[0], params[1]);
                 auto reg = get_register_by_code(params[2]);
-                byte_t value = reg->get_low_byte();
+                byte_t value = reg->get_accessor()->get_low_byte();
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
                 page_t page = address >> 16;  // High 16 bits
@@ -391,56 +417,56 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
             case OPCODE_LDA_REG_REGADDR_W: {
                 auto dest_reg = get_register_by_code(params[0]);
                 auto addr_reg = get_register_by_code(params[1]);
-                addr32_t address = addr_reg->get_value();
+                addr32_t address = addr_reg->get_accessor()->get_value();
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
                 page_t page = address >> 16;  // High 16 bits
                 addr_t offset = address & 0xFFFF;  // Low 16 bits
                 data_accessor->set_page(page);
                 word_t value = data_accessor->read_word(offset);
-                dest_reg->set_value(value);
+                dest_reg->get_accessor()->set_value(value);
                 break;
             }
             case OPCODE_LDAH_REG_REGADDR_B: {
                 auto dest_reg = get_register_by_code(params[0]);
                 auto addr_reg = get_register_by_code(params[1]);
-                addr32_t address = addr_reg->get_value();
+                addr32_t address = addr_reg->get_accessor()->get_value();
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
                 page_t page = address >> 16;  // High 16 bits
                 addr_t offset = address & 0xFFFF;  // Low 16 bits
                 data_accessor->set_page(page);
                 byte_t value = data_accessor->read_byte(offset);
-                dest_reg->set_high_byte(value);
+                dest_reg->get_accessor()->set_high_byte(value);
                 break;
             }
             case OPCODE_LDAL_REG_REGADDR_B: {
                 auto dest_reg = get_register_by_code(params[0]);
                 auto addr_reg = get_register_by_code(params[1]);
-                addr32_t address = addr_reg->get_value();
+                addr32_t address = addr_reg->get_accessor()->get_value();
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_ONLY);
                 page_t page = address >> 16;  // High 16 bits
                 addr_t offset = address & 0xFFFF;  // Low 16 bits
                 data_accessor->set_page(page);
                 byte_t value = data_accessor->read_byte(offset);
-                dest_reg->set_low_byte(value);
+                dest_reg->get_accessor()->set_low_byte(value);
                 break;
             }   
 
             case OPCODE_SWP_REG_REG: {
                 auto reg1 = get_register_by_code(params[0]);
                 auto reg2 = get_register_by_code(params[1]);
-                word_t temp = reg1->get_value();
-                reg1->set_value(reg2->get_value());
-                reg2->set_value(temp);
+                word_t temp = reg1->get_accessor()->get_value();
+                reg1->get_accessor()->set_value(reg2->get_accessor()->get_value());
+                reg2->get_accessor()->set_value(temp);
                 break;
             }
             // stack operations
 
             case OPCODE_PUSHW_IMM_W: {
                 // params are in little-endian order: low byte first, high byte second
-                word_t value = combine_bytes_to_address(params[1], params[0]);
+                word_t value = combine_bytes_to_address(params[0], params[1]);
                 stack_access->push_word(value);
                 break;
             }
@@ -451,13 +477,13 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
             }
             case OPCODE_PUSH_REG_W: {
                 auto reg = get_register_by_code(params[0]);
-                stack_access->push_word(reg->get_value());
+                stack_access->push_word(reg->get_accessor()->get_value());
                 break;
             }
             case OPCODE_POP_REG_W: {
                 auto reg = get_register_by_code(params[0]);
                 word_t value = stack_access->pop_word();
-                reg->set_value(value);
+                reg->get_accessor()->set_value(value);
                 break;
             }
             case OPCODE_PUSHH_REG_B: {
@@ -468,47 +494,47 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
             case OPCODE_POPH_REG_B: {
                 auto reg = get_register_by_code(params[0]);
                 byte_t value = stack_access->pop_byte();
-                reg->set_high_byte(value);
+                reg->get_accessor()->set_high_byte(value);
                 break;
             }
             case OPCODE_PUSHL_REG_B: {
                 auto reg = get_register_by_code(params[0]);
-                byte_t value = reg->get_low_byte();
+                byte_t value = reg->get_accessor()->get_low_byte();
                 stack_access->push_byte(value);
                 break;
             }
             case OPCODE_POPL_REG_B: {
                 auto reg = get_register_by_code(params[0]);
                 byte_t value = stack_access->pop_byte();
-                reg->set_low_byte(value);
+                reg->get_accessor()->set_low_byte(value);
                 break;
             }
             case OPCODE_PEEK_REG_OFF_W: {
                 auto reg = get_register_by_code(params[0]);
                 page_offset_t offset = combine_bytes_to_address(params[1], params[2]);
                 word_t value = stack_access->peek_word_from_base(offset);
-                reg->set_value(value);
+                reg->get_accessor()->set_value(value);
                 break;
             }
             case OPCODE_PEEKF_REG_OFF_W: {
                 auto reg = get_register_by_code(params[0]);
                 page_offset_t offset = combine_bytes_to_address(params[1], params[2]);
                 word_t value = stack_access->peek_word_from_frame(offset);
-                reg->set_value(value);
+                reg->get_accessor()->set_value(value);
                 break;
             }
             case OPCODE_PEEKB_REG_OFF_B: {
                 auto reg = get_register_by_code(params[0]);
                 page_offset_t offset = combine_bytes_to_address(params[1], params[2]);
                 byte_t value = stack_access->peek_byte_from_base(offset);
-                reg->set_low_byte(value);
+                reg->get_accessor()->set_low_byte(value);
                 break;
             }
             case OPCODE_PEEKFB_REG_OFF_B: {
                 auto reg = get_register_by_code(params[0]);
                 page_offset_t offset = combine_bytes_to_address(params[1], params[2]);
                 byte_t value = stack_access->peek_byte_from_frame(offset);
-                reg->set_low_byte(value);
+                reg->get_accessor()->set_low_byte(value);
                 break;
             }
             case OPCODE_FLSH: {
@@ -525,7 +551,7 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 // Set page for data context via accessor
                 // params[0-1]: page number (16-bit little-endian)
                 // params[2-3]: context id (16-bit little-endian) - currently ignored
-                page_t page = combine_bytes_to_word(params[1], params[0]);
+                page_t page = combine_bytes_to_word(params[0], params[1]);
                 
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
@@ -537,7 +563,7 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 // params[0]: register code
                 // params[1-2]: context id (16-bit little-endian) - currently ignored
                 auto reg = get_register_by_code(params[0]);
-                page_t page = reg->get_value();
+                page_t page = reg->get_accessor()->get_value();
                 
                 auto data_ctx = vmem_unit_->get_context(data_context_id_);
                 auto data_accessor = data_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
@@ -545,6 +571,8 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
                 break;
             }
             default:
+                std::cerr << "[CPU ERROR] Invalid stack operation opcode: 0x" 
+                          << std::hex << (int)opcode << std::dec << "\n";
                 throw runtime_error("Invalid stack operation opcode");
         }
     }
@@ -554,13 +582,13 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
             case OPCODE_INC_REG:
                 {
                     auto reg = get_register_by_code(params[0]);
-                    reg->inc();
+                    reg->get_accessor()->inc();
                 }
                 break;
             case OPCODE_DEC_REG:
                 {
                     auto reg = get_register_by_code(params[0]);
-                    reg->dec();
+                    reg->get_accessor()->dec();
                 }
                 break;
             default:
@@ -574,7 +602,7 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
             case OPCODE_SYS_FUNC:
                 {
                     // params are in little-endian order: low byte first, high byte second
-                    word_t syscall_number = combine_bytes_to_word(params[1], params[0]);
+                    word_t syscall_number = combine_bytes_to_word(params[0], params[1]);
                     accessor->system_call(syscall_number);  
                     break;
                 }

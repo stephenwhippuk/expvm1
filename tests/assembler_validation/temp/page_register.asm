@@ -1,0 +1,4 @@
+CODE
+    LD AX, 0x0002
+    PAGE AX
+    HALT

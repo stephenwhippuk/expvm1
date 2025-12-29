@@ -1,0 +1,1 @@
+DATA\n    value: .WORD 0x1234\nCODE\n    LD BX, value\n    LDAH AX, [BX]\n    HALT\n

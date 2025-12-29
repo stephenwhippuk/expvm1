@@ -1,0 +1,3 @@
+CODE
+    PAGE 0x0001
+    HALT

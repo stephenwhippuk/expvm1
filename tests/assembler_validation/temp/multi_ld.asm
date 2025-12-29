@@ -1,0 +1,5 @@
+CODE
+    LD AX, 0x1000
+    LD BX, 0x2000
+    LD CX, 0x3000
+    HALT

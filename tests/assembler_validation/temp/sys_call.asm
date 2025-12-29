@@ -1,0 +1,3 @@
+CODE
+    SYS 0x01
+    HALT

@@ -1,0 +1,4 @@
+CODE
+    LD AX, 0x0080
+    SHRB 4
+    HALT

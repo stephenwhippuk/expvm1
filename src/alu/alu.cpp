@@ -5,7 +5,7 @@ using namespace lvm;
 
 Alu::Alu(std::shared_ptr<Register> acc)
     : accumulator(acc) {
-        if(!accumulator->has_flags()) {
+        if(!accumulator->get_accessor()->has_flags()) {
             throw lvm::runtime_error("Accumulator register must have associated flags for ALU operations");
         }
     }
@@ -17,37 +17,37 @@ Alu::~Alu() {}
 
 void Alu::calculate_flags(word_t result, word_t a, word_t b, char operation) {
     // Clear all relevant flags first
-    accumulator->clear_flag(Flag::ZERO);
-    accumulator->clear_flag(Flag::CARRY);
-    accumulator->clear_flag(Flag::SIGN);
-    accumulator->clear_flag(Flag::OVERFLOW);
+    accumulator->get_accessor()->clear_flag(Flag::ZERO);
+    accumulator->get_accessor()->clear_flag(Flag::CARRY);
+    accumulator->get_accessor()->clear_flag(Flag::SIGN);
+    accumulator->get_accessor()->clear_flag(Flag::OVERFLOW);
 
     // Set ZERO flag
     if (result == 0) {
-        accumulator->set_flag(Flag::ZERO);
+        accumulator->get_accessor()->set_flag(Flag::ZERO);
     }
 
     // Set SIGN flag
     if (result & 0x8000) { // Check if the highest bit is set
-        accumulator->set_flag(Flag::SIGN);
+        accumulator->get_accessor()->set_flag(Flag::SIGN);
     }
 
     // Set CARRY and OVERFLOW flags based on operation
     switch (operation) {
         case '+':
             if (result < a || result < b) {
-                accumulator->set_flag(Flag::CARRY);
+                accumulator->get_accessor()->set_flag(Flag::CARRY);
             }
             if (((a ^ result) & (b ^ result) & 0x8000) != 0) {
-                accumulator->set_flag(Flag::OVERFLOW);
+                accumulator->get_accessor()->set_flag(Flag::OVERFLOW);
             }
             break;
         case '-':
             if (a < b) {
-                accumulator->set_flag(Flag::CARRY);
+                accumulator->get_accessor()->set_flag(Flag::CARRY);
             }
             if (((a ^ b) & (a ^ result) & 0x8000) != 0) {
-                accumulator->set_flag(Flag::OVERFLOW);
+                accumulator->get_accessor()->set_flag(Flag::OVERFLOW);
             }
             break;
         // Additional operations can be added here
@@ -58,7 +58,7 @@ void Alu::calculate_flags(word_t result, word_t a, word_t b, char operation) {
 }
 
 void Alu::add(word_t value) {
-    word_t a = accumulator->get_value();
+    word_t a = accumulator->get_accessor()->get_value();
     word_t b = value;
     word_t result = 0;
     word_t carry = 0;
@@ -72,7 +72,7 @@ void Alu::add(word_t value) {
         result |= (sum_bit << i);
     }
     
-    accumulator->set_value(result);
+    accumulator->get_accessor()->set_value(result);
     // Set flags
     calculate_flags(result, a, b, '+');
     
@@ -83,7 +83,7 @@ void Alu::add_byte(byte_t value) {
 }
 
 void Alu::sub(word_t value) {
-    word_t a = accumulator->get_value();
+    word_t a = accumulator->get_accessor()->get_value();
     word_t b = value;
     word_t result = 0;
     word_t borrow = 0;
@@ -97,7 +97,7 @@ void Alu::sub(word_t value) {
         result |= (diff_bit << i);
     }
 
-    accumulator->set_value(result);
+    accumulator->get_accessor()->set_value(result);
     // Set flags
     calculate_flags(result, a, b, '-');
 }
@@ -107,14 +107,14 @@ void Alu::sub_byte(byte_t value) {
 }
 
 void Alu::mul(word_t value) {
-    word_t a = accumulator->get_value();
+    word_t a = accumulator->get_accessor()->get_value();
     word_t b = value;
     dword_t result = static_cast<dword_t>(a) * static_cast<dword_t>(b);
-    accumulator->set_value(static_cast<word_t>(result & 0xFFFF));
+    accumulator->get_accessor()->set_value(static_cast<word_t>(result & 0xFFFF));
     // Set flags
     calculate_flags(static_cast<word_t>(result & 0xFFFF), a, b, '+');
     if (result > 0xFFFF) {
-        accumulator->set_flag(Flag::CARRY);
+        accumulator->get_accessor()->set_flag(Flag::CARRY);
     }
 }
 
@@ -123,13 +123,13 @@ void Alu::mul_byte(byte_t value) {
 }
 
 void Alu::div(word_t value) {
-    word_t a = accumulator->get_value();
+    word_t a = accumulator->get_accessor()->get_value();
     word_t b = value;
     if (b == 0) {
         throw lvm::runtime_error("Division by zero");
     }
     word_t result = a / b;
-    accumulator->set_value(result);
+    accumulator->get_accessor()->set_value(result);
     // Set flags
     calculate_flags(result, a, b, '+');
 }
@@ -139,13 +139,13 @@ void Alu::div_byte(byte_t value) {
 }
 
 void Alu::rem(word_t value) {
-    word_t a = accumulator->get_value();
+    word_t a = accumulator->get_accessor()->get_value();
     word_t b = value;
     if (b == 0) {
         throw lvm::runtime_error("Division by zero");
     }
     word_t result = a % b;
-    accumulator->set_value(result);
+    accumulator->get_accessor()->set_value(result);
     // Set flags
     calculate_flags(result, a, b, '+');
 }
@@ -155,10 +155,10 @@ void Alu::rem_byte(byte_t value) {
 }
 
 void Alu::bit_and(word_t value) {
-    word_t a = accumulator->get_value();
+    word_t a = accumulator->get_accessor()->get_value();
     word_t b = value;
     word_t result = a & b;
-    accumulator->set_value(result);
+    accumulator->get_accessor()->set_value(result);
     // Set flags
     calculate_flags(result, a, b, '+');
 }
@@ -167,10 +167,10 @@ void Alu::bit_and_byte(byte_t value) {
     bit_and(static_cast<word_t>(value));
 }   
 void Alu::bit_or(word_t value) {
-    word_t a = accumulator->get_value();
+    word_t a = accumulator->get_accessor()->get_value();
     word_t b = value;
     word_t result = a | b;
-    accumulator->set_value(result);
+    accumulator->get_accessor()->set_value(result);
     // Set flags
     calculate_flags(result, a, b, '+');
 }
@@ -180,10 +180,10 @@ void Alu::bit_or_byte(byte_t value) {
 }
 
 void Alu::bit_xor(word_t value) {
-    word_t a = accumulator->get_value();
+    word_t a = accumulator->get_accessor()->get_value();
     word_t b = value;
     word_t result = a ^ b;
-    accumulator->set_value(result);
+    accumulator->get_accessor()->set_value(result);
     // Set flags
     calculate_flags(result, a, b, '+');
 }
@@ -193,43 +193,43 @@ void Alu::bit_xor_byte(byte_t value) {
 }
 
 void Alu::bit_not() {
-    word_t a = accumulator->get_value();
+    word_t a = accumulator->get_accessor()->get_value();
     word_t result = ~a;
-    accumulator->set_value(result);
+    accumulator->get_accessor()->set_value(result);
     // Set flags
     calculate_flags(result, a, 0, '+');
 }
 void Alu::shl(word_t count) {
-    word_t a = accumulator->get_value();
+    word_t a = accumulator->get_accessor()->get_value();
     word_t result = a << count;
-    accumulator->set_value(result);
+    accumulator->get_accessor()->set_value(result);
     // Set flags
     calculate_flags(result, a, 0, '+');
 }
 void Alu::shr(word_t count) {
-    word_t a = accumulator->get_value();
+    word_t a = accumulator->get_accessor()->get_value();
     word_t result = a >> count;
-    accumulator->set_value(result);
+    accumulator->get_accessor()->set_value(result);
     // Set flags
     calculate_flags(result, a, 0, '+');
 }
 void Alu::rol(word_t count) {
-    word_t a = accumulator->get_value();
+    word_t a = accumulator->get_accessor()->get_value();
     word_t result = (a << count) | (a >> (16 - count));
-    accumulator->set_value(result);
+    accumulator->get_accessor()->set_value(result);
     // Set flags
     calculate_flags(result, a, 0, '+');
 }
 void Alu::ror(word_t count) {
-    word_t a = accumulator->get_value();
+    word_t a = accumulator->get_accessor()->get_value();
     word_t result = (a >> count) | (a << (16 - count));
-    accumulator->set_value(result);
+    accumulator->get_accessor()->set_value(result);
     // Set flags
     calculate_flags(result, a, 0, '+');
 }
 
 void Alu::cmp(word_t value) {
-    word_t acc_value = accumulator->get_value();
+    word_t acc_value = accumulator->get_accessor()->get_value();
     word_t result;
     
     if (acc_value < value) {
@@ -240,12 +240,12 @@ void Alu::cmp(word_t value) {
         result = 0x0001; // 1
     }
     
-    accumulator->set_value(result);
+    accumulator->get_accessor()->set_value(result);
     calculate_flags(result, acc_value, value, 'c');
 }
 
 void Alu::cmp_byte(byte_t value) {
-    byte_t acc_value = accumulator->get_low_byte();
+    byte_t acc_value = accumulator->get_accessor()->get_low_byte();
     word_t result;
     
     if (acc_value < value) {
@@ -256,6 +256,6 @@ void Alu::cmp_byte(byte_t value) {
         result = 0x0001; // 1
     }
     
-    accumulator->set_value(result);
+    accumulator->get_accessor()->set_value(result);
     calculate_flags(result, acc_value, value, 'c');
 }

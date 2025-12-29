@@ -1,0 +1,4 @@
+CODE
+    LD AX, 0x0014
+    DVB 0x05
+    HALT

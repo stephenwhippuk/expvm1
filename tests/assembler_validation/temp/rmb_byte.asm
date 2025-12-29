@@ -1,0 +1,4 @@
+CODE
+    LD AX, 0x0017
+    RMB 0x05
+    HALT

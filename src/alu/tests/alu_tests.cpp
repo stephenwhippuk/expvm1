@@ -11,9 +11,9 @@ TEST(ALUTest, Addition) {
     auto acc = std::make_shared<Register>(flags);
     Alu alu(acc);
     
-    acc->set_value(5);
+    acc->get_accessor()->set_value(5);
     alu.add(3);
-    EXPECT_EQ(acc->get_value(), 8);
+    EXPECT_EQ(acc->get_accessor()->get_value(), 8);
 }
 
 TEST(ALUTest, AdditionWithOverflow) {
@@ -21,11 +21,11 @@ TEST(ALUTest, AdditionWithOverflow) {
     auto acc = std::make_shared<Register>(flags);
     Alu alu(acc);
     
-    acc->set_value(0xFFFF);
+    acc->get_accessor()->set_value(0xFFFF);
     alu.add(1);
-    EXPECT_EQ(acc->get_value(), 0);
-    EXPECT_TRUE(acc->is_flag_set(Flag::ZERO));
-    EXPECT_TRUE(acc->is_flag_set(Flag::CARRY));
+    EXPECT_EQ(acc->get_accessor()->get_value(), 0);
+    EXPECT_TRUE(acc->get_accessor()->is_flag_set(Flag::ZERO));
+    EXPECT_TRUE(acc->get_accessor()->is_flag_set(Flag::CARRY));
 }
 
 TEST(ALUTest, Subtraction) {
@@ -33,9 +33,24 @@ TEST(ALUTest, Subtraction) {
     auto acc = std::make_shared<Register>(flags);
     Alu alu(acc);
     
-    acc->set_value(10);
+    // Basic subtraction
+    acc->get_accessor()->set_value(10);
     alu.sub(3);
-    EXPECT_EQ(acc->get_value(), 7);
+    EXPECT_EQ(acc->get_accessor()->get_value(), 7);
+    EXPECT_FALSE(acc->get_accessor()->is_flag_set(Flag::ZERO));
+    
+    // Subtraction resulting in zero - THIS IS CRITICAL FOR JPNZ TEST
+    acc->get_accessor()->set_value(5);
+    alu.sub(5);
+    EXPECT_EQ(acc->get_accessor()->get_value(), 0);
+    EXPECT_TRUE(acc->get_accessor()->is_flag_set(Flag::ZERO));
+    
+    // Subtraction resulting in negative (sign flag)
+    acc->get_accessor()->set_value(3);
+    alu.sub(5);
+    EXPECT_EQ(acc->get_accessor()->get_value(), 0xFFFE); // -2 in two's complement
+    EXPECT_TRUE(acc->get_accessor()->is_flag_set(Flag::SIGN));
+    EXPECT_FALSE(acc->get_accessor()->is_flag_set(Flag::ZERO));
 }
 
 TEST(ALUTest, Comparison) {
@@ -44,19 +59,19 @@ TEST(ALUTest, Comparison) {
     Alu alu(acc);
     
     // Test a < b
-    acc->set_value(5);
+    acc->get_accessor()->set_value(5);
     alu.cmp(10);
-    EXPECT_EQ(acc->get_value(), 0xFFFF); // -1
+    EXPECT_EQ(acc->get_accessor()->get_value(), 0xFFFF); // -1
     
     // Test a == b
-    acc->set_value(10);
+    acc->get_accessor()->set_value(10);
     alu.cmp(10);
-    EXPECT_EQ(acc->get_value(), 0); // 0
+    EXPECT_EQ(acc->get_accessor()->get_value(), 0); // 0
     
     // Test a > b
-    acc->set_value(15);
+    acc->get_accessor()->set_value(15);
     alu.cmp(10);
-    EXPECT_EQ(acc->get_value(), 1); // 1
+    EXPECT_EQ(acc->get_accessor()->get_value(), 1); // 1
 }
 
 TEST(ALUTest, BitwiseOperations) {
@@ -65,22 +80,22 @@ TEST(ALUTest, BitwiseOperations) {
     Alu alu(acc);
     
     // AND
-    acc->set_value(0xFF0F);
+    acc->get_accessor()->set_value(0xFF0F);
     alu.bit_and(0x0F0F);
-    EXPECT_EQ(acc->get_value(), 0x0F0F);
+    EXPECT_EQ(acc->get_accessor()->get_value(), 0x0F0F);
     
     // OR
-    acc->set_value(0xFF00);
+    acc->get_accessor()->set_value(0xFF00);
     alu.bit_or(0x00FF);
-    EXPECT_EQ(acc->get_value(), 0xFFFF);
+    EXPECT_EQ(acc->get_accessor()->get_value(), 0xFFFF);
     
     // XOR
-    acc->set_value(0xFFFF);
+    acc->get_accessor()->set_value(0xFFFF);
     alu.bit_xor(0xAAAA);
-    EXPECT_EQ(acc->get_value(), 0x5555);
+    EXPECT_EQ(acc->get_accessor()->get_value(), 0x5555);
     
     // NOT
-    acc->set_value(0xAAAA);
+    acc->get_accessor()->set_value(0xAAAA);
     alu.bit_not();
-    EXPECT_EQ(acc->get_value(), 0x5555);
+    EXPECT_EQ(acc->get_accessor()->get_value(), 0x5555);
 }

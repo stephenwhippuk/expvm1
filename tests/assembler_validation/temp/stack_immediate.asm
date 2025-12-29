@@ -1,0 +1,4 @@
+CODE
+    PUSHW 0x1234
+    POP AX
+    HALT

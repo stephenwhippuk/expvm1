@@ -297,3 +297,41 @@ TEST_F(StackNewTest, PeekWordFromFrame) {
     // Frame offset 3 accesses address 4-5
     EXPECT_EQ(accessor->peek_word_from_frame(3), 0xCCCC);
 }
+
+// Test SETF with value matching SP (Issue #3 investigation)
+TEST_F(StackNewTest, SetFramePointerToCurrentSP) {
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
+    
+    // Mimic binary test: push 2 words then SETF to 4
+    accessor->push_word(0x1111);  // Addresses 0-1, SP becomes 2
+    EXPECT_EQ(accessor->get_sp(), 2);
+    
+    accessor->push_word(0x2222);  // Addresses 2-3, SP becomes 4
+    EXPECT_EQ(accessor->get_sp(), 4);
+    
+    // Now try to set frame pointer to 4 (current SP)
+    // This is what our binary test does: SETF 0x0004
+    // Should this work or fail?
+    EXPECT_NO_THROW(accessor->set_frame_pointer(4));
+    EXPECT_EQ(accessor->get_fp(), 4);
+}
+
+// Test SETF validation boundaries
+TEST_F(StackNewTest, SetFramePointerValidation) {
+    Stack stack(vmem_unit, 1024);
+    vmem_unit->set_mode(VMemUnit::Mode::PROTECTED);
+    auto accessor = stack.get_accessor(MemAccessMode::READ_WRITE);
+    
+    // Test valid values
+    EXPECT_NO_THROW(accessor->set_frame_pointer(-1));  // Default
+    EXPECT_NO_THROW(accessor->set_frame_pointer(0));   // Minimum valid
+    EXPECT_NO_THROW(accessor->set_frame_pointer(100)); // Mid-range
+    EXPECT_NO_THROW(accessor->set_frame_pointer(1023)); // Max valid (capacity - 1)
+    
+    // Test invalid values
+    EXPECT_THROW(accessor->set_frame_pointer(-2), lvm::runtime_error);  // Too low
+    EXPECT_THROW(accessor->set_frame_pointer(1024), lvm::runtime_error); // At capacity
+    EXPECT_THROW(accessor->set_frame_pointer(2000), lvm::runtime_error); // Beyond capacity
+}

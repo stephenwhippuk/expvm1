@@ -1,0 +1,4 @@
+CODE
+    LD AX, 100
+    CMP AX, 100
+    HALT

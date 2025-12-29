@@ -323,3 +323,103 @@ TEST_F(InstructionUnitTest, ProgramTooLarge) {
     std::vector<byte_t> large_program(300, 0xFF); // Too large for 256 bytes
     EXPECT_THROW(accessor->Load_Program(large_program), std::runtime_error);
 }
+
+// Test conditional jump with CARRY flag
+TEST_F(InstructionUnitTest, ConditionalJumpCarry) {
+    auto iu = createInstructionUnit();
+    auto accessor = iu->get_accessor(MemAccessMode::READ_WRITE);
+    
+    // Test JPC (Jump if Carry set)
+    flags->set(Flag::CARRY);
+    accessor->set_IR(0x100);
+    accessor->Jump_To_Address_Conditional(0x500, Flag::CARRY, true);
+    EXPECT_EQ(accessor->get_IR(), 0x500);
+    
+    // Test JPNC (Jump if Carry not set)
+    flags->clear(Flag::CARRY);
+    accessor->set_IR(0x100);
+    accessor->Jump_To_Address_Conditional(0x600, Flag::CARRY, false);
+    EXPECT_EQ(accessor->get_IR(), 0x600);
+}
+
+// Test conditional jump with SIGN flag
+TEST_F(InstructionUnitTest, ConditionalJumpSign) {
+    auto iu = createInstructionUnit();
+    auto accessor = iu->get_accessor(MemAccessMode::READ_WRITE);
+    
+    // Test JPS (Jump if Sign set)
+    flags->set(Flag::SIGN);
+    accessor->set_IR(0x100);
+    accessor->Jump_To_Address_Conditional(0x500, Flag::SIGN, true);
+    EXPECT_EQ(accessor->get_IR(), 0x500);
+    
+    // Test JPNS (Jump if Sign not set)
+    flags->clear(Flag::SIGN);
+    accessor->set_IR(0x100);
+    accessor->Jump_To_Address_Conditional(0x600, Flag::SIGN, false);
+    EXPECT_EQ(accessor->get_IR(), 0x600);
+}
+
+// Test conditional jump with OVERFLOW flag
+TEST_F(InstructionUnitTest, ConditionalJumpOverflow) {
+    auto iu = createInstructionUnit();
+    auto accessor = iu->get_accessor(MemAccessMode::READ_WRITE);
+    
+    // Test JPO (Jump if Overflow set)
+    flags->set(Flag::OVERFLOW);
+    accessor->set_IR(0x100);
+    accessor->Jump_To_Address_Conditional(0x500, Flag::OVERFLOW, true);
+    EXPECT_EQ(accessor->get_IR(), 0x500);
+    
+    // Test JPNO (Jump if Overflow not set)
+    flags->clear(Flag::OVERFLOW);
+    accessor->set_IR(0x100);
+    accessor->Jump_To_Address_Conditional(0x600, Flag::OVERFLOW, false);
+    EXPECT_EQ(accessor->get_IR(), 0x600);
+}
+
+// Test JPNZ when ZERO flag is SET (should NOT jump)
+TEST_F(InstructionUnitTest, ConditionalJumpNZWhenZeroSet) {
+    auto iu = createInstructionUnit();
+    auto accessor = iu->get_accessor(MemAccessMode::READ_WRITE);
+    
+    // Set ZERO flag
+    flags->set(Flag::ZERO);
+    
+    // Set IR to 0x100
+    accessor->set_IR(0x100);
+    
+    // JPNZ to 0x500 - should NOT jump because ZERO is set
+    accessor->Jump_To_Address_Conditional(0x500, Flag::ZERO, false);
+    
+    // IR should still be 0x100 (no jump)
+    EXPECT_EQ(accessor->get_IR(), 0x100);
+}
+
+// Test full sequence matching test_jpnz_not_taken binary
+TEST_F(InstructionUnitTest, FullSequenceJPNZNotTaken) {
+    auto iu = createInstructionUnit();
+    auto accessor = iu->get_accessor(MemAccessMode::READ_WRITE);
+    
+    // This simulates the exact sequence in test_jpnz_not_taken.bin:
+    // LD AX, 5
+    // SUB 5  (AX becomes 0, ZERO flag set)
+    // JPNZ 0xFF (should NOT jump because ZERO is true)
+    // HALT
+    
+    // Initial state
+    accessor->set_IR(0x0A);
+    
+    // After SUB 5 from 5, ZERO should be set
+    flags->set(Flag::ZERO);
+    
+    // JPNZ with ZERO=true should NOT change IR
+    accessor->Jump_To_Address_Conditional(0xFF, Flag::ZERO, false);
+    
+    // IR should still be 0x0A
+    EXPECT_EQ(accessor->get_IR(), 0x0A);
+    
+    // Verify ZERO flag is still set
+    EXPECT_TRUE(flags->is_set(Flag::ZERO));
+}
+

@@ -133,6 +133,18 @@ namespace assembler {
         std::string upper_mnem = node.mnemonic();
         std::transform(upper_mnem.begin(), upper_mnem.end(), upper_mnem.begin(), ::toupper);
         
+        // Special handling for PAGE: add context word operand (defaults to 0)
+        if (upper_mnem == "PAGE") {
+            // PAGE instruction format: 
+            // - Immediate: opcode + page (2 bytes) + context (2 bytes)
+            // - Register: opcode + register (1 byte) + context (2 bytes)
+            // Context operand is auto-added by assembler (reserved for future use, always 0)
+            InstructionOperand context_op;
+            context_op.type = InstructionOperand::Type::IMMEDIATE_WORD;
+            context_op.immediate_value = 0;  // Default: context = 0
+            operands.push_back(context_op);
+        }
+        
         // Special handling for CALL: add return value flag byte (defaults to 0)
         if (upper_mnem == "CALL") {
             // CALL instruction format: opcode + address (2 bytes) + flag (1 byte)
@@ -578,36 +590,257 @@ namespace assembler {
         std::string upper = mnemonic;
         std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
         
-        // Disambiguate LDA based on second operand type
+        // Disambiguate LD based on second operand type
+        if (upper == "LD") {
+            if (operands.size() >= 2 && operands[1].type == InstructionOperand::Type::REGISTER) {
+                // LD reg, reg (register-to-register)
+                return 0x03;  // OPCODE_LD_REG_REG
+            } else {
+                // LD reg, immediate (immediate value)
+                return 0x02;  // OPCODE_LD_REG_IMM
+            }
+        }
+        
+        // Disambiguate LDH based on second operand type
+        if (upper == "LDH") {
+            if (operands.size() >= 2 && operands[1].type == InstructionOperand::Type::REGISTER) {
+                // LDH reg, reg (register-to-register)
+                return 0x06;  // OPCODE_LDH_REG_REG
+            } else {
+                // LDH reg, immediate (immediate value)
+                return 0x05;  // OPCODE_LDH_REG_IMM
+            }
+        }
+        
+        // Disambiguate LDL based on second operand type
+        if (upper == "LDL") {
+            if (operands.size() >= 2 && operands[1].type == InstructionOperand::Type::REGISTER) {
+                // LDL reg, reg (register-to-register)
+                return 0x08;  // OPCODE_LDL_REG_REG
+            } else {
+                // LDL reg, immediate (immediate value)
+                return 0x07;  // OPCODE_LDL_REG_IMM
+            }
+        }
+        
+        // Disambiguate LDA based on first and second operand types
         if (upper == "LDA") {
-            if (operands.size() >= 2 && operands[1].type == InstructionOperand::Type::REGISTER) {
-                // LDA reg, reg (register-indirect addressing)
-                return 0x72;  // OPCODE_LDA_REG_REGADDR_W
-            } else {
-                // LDA reg, address (direct addressing)
-                return 0x09;  // OPCODE_LDA_REG_ADDR_W
+            if (operands.size() >= 2) {
+                // Check first operand to determine load vs store
+                if (operands[0].type == InstructionOperand::Type::REGISTER) {
+                    // First operand is register (destination) - LOAD operation
+                    if (operands[1].type == InstructionOperand::Type::REGISTER) {
+                        // LDA reg, reg (register-indirect load)
+                        return 0x72;  // OPCODE_LDA_REG_REGADDR_W
+                    } else {
+                        // LDA reg, address (direct load)
+                        return 0x09;  // OPCODE_LDA_REG_ADDR_W
+                    }
+                } else {
+                    // First operand is address/expression (destination) - STORE operation
+                    // LDA address, reg (store to memory)
+                    return 0x0D;  // OPCODE_LDA_ADDR_REG_W (store)
+                }
             }
+            // Default to load if only one operand
+            return 0x09;
         }
         
-        // Disambiguate LDAH based on second operand type
+        // Disambiguate LDAH based on first and second operand types
         if (upper == "LDAH") {
-            if (operands.size() >= 2 && operands[1].type == InstructionOperand::Type::REGISTER) {
-                // LDAH reg, reg (register-indirect addressing)
-                return 0x73;  // OPCODE_LDAH_REG_REGADDR_B
+            if (operands.size() >= 2) {
+                // Check first operand to determine load vs store
+                if (operands[0].type == InstructionOperand::Type::REGISTER) {
+                    // First operand is register (destination) - LOAD operation
+                    if (operands[1].type == InstructionOperand::Type::REGISTER) {
+                        // LDAH reg, reg (register-indirect load)
+                        return 0x73;  // OPCODE_LDAH_REG_REGADDR_B
+                    } else {
+                        // LDAH reg, address (direct load)
+                        return 0x0B;  // OPCODE_LDAH_REG_ADDR_B
+                    }
+                } else {
+                    // First operand is address/expression (destination) - STORE operation
+                    // LDAH address, reg (store to memory)
+                    return 0x0E;  // OPCODE_LDAH_ADDR_REG_B (store)
+                }
+            }
+            // Default to load if only one operand
+            return 0x0B;
+        }
+        
+        // Disambiguate LDAL based on first and second operand types
+        if (upper == "LDAL") {
+            if (operands.size() >= 2) {
+                // Check first operand to determine load vs store
+                if (operands[0].type == InstructionOperand::Type::REGISTER) {
+                    // First operand is register (destination) - LOAD operation
+                    if (operands[1].type == InstructionOperand::Type::REGISTER) {
+                        // LDAL reg, reg (register-indirect load)
+                        return 0x74;  // OPCODE_LDAL_REG_REGADDR_B
+                    } else {
+                        // LDAL reg, address (direct load)
+                        return 0x0C;  // OPCODE_LDAL_REG_ADDR_B
+                    }
+                } else {
+                    // First operand is address/expression (destination) - STORE operation
+                    // LDAL address, reg (store to memory)
+                    return 0x0F;  // OPCODE_LDAL_ADDR_REG_B (store)
+                }
+            }
+            // Default to load if only one operand
+            return 0x0C;
+        }
+        
+        // Disambiguate NOT based on operand type
+        if (upper == "NOT") {
+            if (operands.size() >= 1 && operands[0].type == InstructionOperand::Type::REGISTER) {
+                // NOT reg (register)
+                return 0x52;  // OPCODE_NOT_REG_W
             } else {
-                // LDAH reg, address (direct addressing)
-                return 0x0B;  // OPCODE_LDAH_REG_ADDR_B
+                // NOT immediate (immediate value)
+                return 0x51;  // OPCODE_NOT_IMM_W
             }
         }
         
-        // Disambiguate LDAL based on second operand type
-        if (upper == "LDAL") {
-            if (operands.size() >= 2 && operands[1].type == InstructionOperand::Type::REGISTER) {
-                // LDAL reg, reg (register-indirect addressing)
-                return 0x74;  // OPCODE_LDAL_REG_REGADDR_B
+        // Disambiguate arithmetic operations based on operand type
+        if (upper == "ADD") {
+            if (operands.size() >= 1 && operands[0].type == InstructionOperand::Type::REGISTER) {
+                return 0x2A;  // OPCODE_ADD_REG_W
             } else {
-                // LDAL reg, address (direct addressing)
-                return 0x0C;  // OPCODE_LDAL_REG_ADDR_B
+                return 0x29;  // OPCODE_ADD_IMM_W
+            }
+        }
+        
+        if (upper == "SUB") {
+            if (operands.size() >= 1 && operands[0].type == InstructionOperand::Type::REGISTER) {
+                return 0x2F;  // OPCODE_SUB_REG_W
+            } else {
+                return 0x2E;  // OPCODE_SUB_IMM_W
+            }
+        }
+        
+        if (upper == "MUL") {
+            if (operands.size() >= 1 && operands[0].type == InstructionOperand::Type::REGISTER) {
+                return 0x34;  // OPCODE_MUL_REG_W
+            } else {
+                return 0x33;  // OPCODE_MUL_IMM_W
+            }
+        }
+        
+        if (upper == "DIV") {
+            if (operands.size() >= 1 && operands[0].type == InstructionOperand::Type::REGISTER) {
+                return 0x39;  // OPCODE_DIV_REG_W
+            } else {
+                return 0x38;  // OPCODE_DIV_IMM_W
+            }
+        }
+        
+        if (upper == "REM") {
+            if (operands.size() >= 1 && operands[0].type == InstructionOperand::Type::REGISTER) {
+                return 0x3E;  // OPCODE_REM_REG_W
+            } else {
+                return 0x3D;  // OPCODE_REM_IMM_W
+            }
+        }
+        
+        // Disambiguate logical operations based on operand type
+        if (upper == "AND") {
+            if (operands.size() >= 1 && operands[0].type == InstructionOperand::Type::REGISTER) {
+                return 0x43;  // OPCODE_AND_REG_W
+            } else {
+                return 0x42;  // OPCODE_AND_IMM_W
+            }
+        }
+        
+        if (upper == "OR") {
+            if (operands.size() >= 1 && operands[0].type == InstructionOperand::Type::REGISTER) {
+                return 0x48;  // OPCODE_OR_REG_W
+            } else {
+                return 0x47;  // OPCODE_OR_IMM_W
+            }
+        }
+        
+        if (upper == "XOR") {
+            if (operands.size() >= 1 && operands[0].type == InstructionOperand::Type::REGISTER) {
+                return 0x4D;  // OPCODE_XOR_REG_W
+            } else {
+                return 0x4C;  // OPCODE_XOR_IMM_W
+            }
+        }
+        
+        // Disambiguate shift/rotate operations based on operand type
+        if (upper == "SHL") {
+            if (operands.size() >= 1 && operands[0].type == InstructionOperand::Type::REGISTER) {
+                return 0x57;  // OPCODE_SHL_REG_W
+            } else {
+                return 0x56;  // OPCODE_SHL_IMM_W
+            }
+        }
+        
+        if (upper == "SHR") {
+            if (operands.size() >= 1 && operands[0].type == InstructionOperand::Type::REGISTER) {
+                return 0x5C;  // OPCODE_SHR_REG_W
+            } else {
+                return 0x5B;  // OPCODE_SHR_IMM_W
+            }
+        }
+        
+        if (upper == "ROL") {
+            if (operands.size() >= 1 && operands[0].type == InstructionOperand::Type::REGISTER) {
+                return 0x61;  // OPCODE_ROL_REG_W
+            } else {
+                return 0x60;  // OPCODE_ROL_IMM_W
+            }
+        }
+        
+        if (upper == "ROR") {
+            if (operands.size() >= 1 && operands[0].type == InstructionOperand::Type::REGISTER) {
+                return 0x66;  // OPCODE_ROR_REG_W
+            } else {
+                return 0x65;  // OPCODE_ROR_IMM_W
+            }
+        }
+        
+        // Disambiguate PAGE instruction based on first operand type
+        if (upper == "PAGE") {
+            if (operands.size() >= 1 && operands[0].type == InstructionOperand::Type::REGISTER) {
+                return 0x1C;  // OPCODE_PAGE_REG_CTX
+            } else {
+                return 0x1B;  // OPCODE_PAGE_IMM_CTX
+            }
+        }
+        
+        // Disambiguate CMP instruction based on second operand type
+        if (upper == "CMP") {
+            // CMP takes 2 operands: CMP reg, value
+            // Check 2nd operand: if register → 0x6C, if immediate → 0x6D
+            if (operands.size() >= 2 && operands[1].type == InstructionOperand::Type::REGISTER) {
+                return 0x6C;  // OPCODE_CMP_REG_W
+            } else {
+                return 0x6D;  // OPCODE_CMP_IMM_W
+            }
+        }
+        
+        // Disambiguate CPH instruction based on second operand type
+        if (upper == "CPH") {
+            // CPH takes 2 operands: CPH reg, value (compare high byte)
+            // Check 2nd operand: if register → 0x6E, if immediate → 0x6F
+            if (operands.size() >= 2 && operands[1].type == InstructionOperand::Type::REGISTER) {
+                return 0x6E;  // OPCODE_CPH_REG_B
+            } else {
+                return 0x6F;  // OPCODE_CPH_IMM_B
+            }
+        }
+        
+        // Disambiguate CPL instruction based on second operand type
+        if (upper == "CPL") {
+            // CPL takes 2 operands: CPL reg, value (compare low byte)
+            // Check 2nd operand: if register → 0x70, if immediate → 0x71
+            if (operands.size() >= 2 && operands[1].type == InstructionOperand::Type::REGISTER) {
+                return 0x70;  // OPCODE_CPL_REG_B
+            } else {
+                return 0x71;  // OPCODE_CPL_IMM_B
             }
         }
         

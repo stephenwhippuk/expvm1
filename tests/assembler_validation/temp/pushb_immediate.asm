@@ -1,0 +1,3 @@
+CODE
+    PUSHB 0x42
+    HALT

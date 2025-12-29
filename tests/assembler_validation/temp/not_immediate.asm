@@ -1,0 +1,3 @@
+CODE
+    NOT 0x00FF
+    HALT

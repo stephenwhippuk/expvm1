@@ -3,6 +3,7 @@
 
 add_library(lvm_register STATIC
     register.cpp
+    register_accessor.cpp
     flags.cpp
 )
 

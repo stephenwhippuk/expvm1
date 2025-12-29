@@ -1,0 +1,4 @@
+CODE
+    LD AX, 0x0081
+    RORB 1
+    HALT

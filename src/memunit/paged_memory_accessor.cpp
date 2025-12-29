@@ -3,6 +3,8 @@
 #include "errors.h"
 #include "helpers.h"
 #include <stdexcept>
+#include <iostream>
+#include <iomanip>
 
 using namespace lvm;
 
@@ -66,7 +68,7 @@ word_t PagedMemoryAccessor::read_word(addr_t offset) const {
     // Read two consecutive bytes (little-endian)
     byte_t low = read_byte(offset);
     byte_t high = read_byte(offset + 1);
-    return combine_bytes_to_word(high, low);
+    return combine_bytes_to_word(low, high);
 }
 
 void PagedMemoryAccessor::write_word(addr_t offset, word_t value) {
