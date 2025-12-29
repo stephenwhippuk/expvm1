@@ -1,6 +1,8 @@
 #pragma once
 #include "memsize.h"
 #include <vector>
+#include <string>
+#include <fstream>
 #include "ivmemunit.h"
 #include "istack.h"
 #include "errors.h"
@@ -41,6 +43,7 @@ namespace lvm {
         void initialize();
         void load_program(const std::vector<byte_t>& program);
         void run();
+        void enable_logging(const std::string& logfile);
     private:
         std::shared_ptr<IVMemUnit> vmem_unit_;
         std::shared_ptr<IStack> stack_;
@@ -49,10 +52,17 @@ namespace lvm {
         context_id_t data_context_id_;
         bool halted = false;
         
+        // Logging
+        bool logging_enabled_ = false;
+        std::ofstream log_file_;
+        
         // Flags must be declared before registers since registers depend on it
         std::shared_ptr<Flags> flags;
         
         void step();
+        void log_instruction(byte_t opcode, const std::vector<byte_t>& params);
+        void log_registers();
+        
         // Additional CPU state (registers, flags, etc.) would go here
         // General purpose registers
         std::shared_ptr<Register> AX;

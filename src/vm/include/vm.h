@@ -1,6 +1,7 @@
 #pragma once
 #include "memsize.h"
 #include <vector>
+#include <string>
 #include "vmemunit.h"
 #include "stack.h"
 #include "instruction_unit.h"
@@ -14,6 +15,7 @@ namespace lvm {
         ~vm();
         void load_program(char* fileName, addr_t load_address);
         void run();
+        void enable_logging(const std::string& logfile);
     private:
         std::shared_ptr<VMemUnit> vmem_unit;
         std::shared_ptr<Stack> stack;

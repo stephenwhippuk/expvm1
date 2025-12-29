@@ -1,5 +1,6 @@
 #include "vm.h"
 #include "binary_loader.h"
+#include <iostream>
 
 using namespace lvm;
 
@@ -77,5 +78,9 @@ void vm::load_program(char* fileName, addr_t load_address) {
 
 void vm::run() {
     cpu_instance->run();
+}
+
+void vm::enable_logging(const std::string& logfile) {
+    cpu_instance->enable_logging(logfile);
 }
 

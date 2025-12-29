@@ -181,6 +181,15 @@ namespace assembler {
     void CodeGraphBuilder::visit(OperandNode& node) {
         switch (node.type()) {
             case OperandNode::Type::IMMEDIATE:
+                // Check if this instruction expects an address instead of an immediate
+                if (instruction_expects_address_operand(current_instruction_mnemonic_)) {
+                    throw std::runtime_error(
+                        "Instruction '" + current_instruction_mnemonic_ + 
+                        "' requires an address operand, not a bare number. " +
+                        "Use (label) or (label+offset) for address expressions. " +
+                        "Bare numeric addresses are forbidden because addresses cannot be known at design time.");
+                }
+                
                 // Determine if byte or word based on instruction semantics, not value
                 if (instruction_expects_word_immediate(current_instruction_mnemonic_)) {
                     current_operand_.type = InstructionOperand::Type::IMMEDIATE_WORD;
@@ -213,12 +222,21 @@ namespace assembler {
                 
             case OperandNode::Type::ADDRESS_EXPR:
                 // Parentheses: (expression) - address computation
+                // Reject bare numeric addresses - only labels and expressions allowed
+                if (node.expression()->type() == ExpressionNode::Type::NUMBER) {
+                    throw std::runtime_error(
+                        "Bare numeric address (" + std::to_string(node.expression()->number()) + 
+                        ") is forbidden. Use (label) or (label+offset) instead. " +
+                        "Addresses cannot be known at design time.");
+                }
                 current_operand_.type = InstructionOperand::Type::EXPRESSION;
                 node.expression()->accept(*this);
                 break;
                 
             case OperandNode::Type::MEMORY_ACCESS:
-                // Square brackets: [expression] - memory dereference
+                // Square brackets: [expression] - memory dereference (sugar syntax for LD only)
+                // This should have been rewritten by instruction_rewriter to ADDRESS_EXPR
+                // If we see it here, something went wrong or it's invalid syntax
                 current_operand_.type = InstructionOperand::Type::EXPRESSION;
                 node.expression()->accept(*this);
                 break;
@@ -895,6 +913,34 @@ namespace assembler {
                 upper == "SHRB" ||    // SHRB AX, immediate8
                 upper == "ROLB" ||    // ROLB AX, immediate8
                 upper == "RORB");     // RORB AX, immediate8
+    }
+
+    bool CodeGraphBuilder::instruction_expects_address_operand(const std::string& mnemonic) const {
+        std::string upper = mnemonic;
+        std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+        
+        // Instructions that require address operands - must use (label) or (label+offset)
+        // These are memory access and control flow instructions that take ADDR WORD in ops.txt
+        return (upper == "LDA" ||      // LDA reg, (addr) - load word from memory
+                upper == "LDAB" ||     // LDAB reg, (addr) - load byte from memory
+                upper == "LDAH" ||     // LDAH reg, (addr) - load byte to high
+                upper == "LDAL" ||     // LDAL reg, (addr) - load byte to low
+                upper == "STA" ||      // STA (addr), reg - store word to memory
+                upper == "STAH" ||     // STAH (addr), reg - store high byte
+                upper == "STAL" ||     // STAL (addr), reg - store low byte
+                upper == "JMP" ||      // JMP (addr) - unconditional jump
+                upper == "JPZ" ||      // JPZ (addr) - jump if zero
+                upper == "JZ" ||       // JZ (addr) - jump if zero (alias)
+                upper == "JPNZ" ||     // JPNZ (addr) - jump if not zero
+                upper == "JNZ" ||      // JNZ (addr) - jump if not zero (alias)
+                upper == "JPC" ||      // JPC (addr) - jump if carry
+                upper == "JPNC" ||     // JPNC (addr) - jump if no carry
+                upper == "JPS" ||      // JPS (addr) - jump if sign
+                upper == "JPNS" ||     // JPNS (addr) - jump if no sign
+                upper == "JPO" ||      // JPO (addr) - jump if overflow
+                upper == "JPNO" ||     // JPNO (addr) - jump if no overflow
+                upper == "CALL" ||     // CALL (addr) - call subroutine
+                upper == "SETF");      // SETF (addr) - set frame pointer
     }
 
 } // namespace assembler

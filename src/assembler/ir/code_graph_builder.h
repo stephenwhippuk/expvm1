@@ -97,6 +97,7 @@ namespace assembler {
                                                          const std::vector<InstructionOperand>& operands);
         bool instruction_expects_word_immediate(const std::string& mnemonic) const;
         bool instruction_expects_byte_immediate(const std::string& mnemonic) const;
+        bool instruction_expects_address_operand(const std::string& mnemonic) const;
     };
 
 } // namespace assembler

@@ -6,6 +6,7 @@
 #include "vmemunit.h"
 #include "alu.h"
 #include "context.h"
+#include "flags.h"
 #include <iostream>
 #include <iomanip>
 
@@ -84,10 +85,19 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
 
     void Cpu::run() {
         vmem_unit_->set_mode(IVMemUnit::Mode::PROTECTED);
-        while (!halted) {
-            // a timer will be here to control processor frame rate
-            step();
+        try {
+            while (!halted) {
+                // a timer will be here to control processor frame rate
+                step();
+            }
+        } catch (const std::exception& e) {
+            // Log registers on error
+            log_registers();
+            vmem_unit_->set_mode(IVMemUnit::Mode::UNPROTECTED);
+            throw;
         }
+        // Log registers on normal halt
+        log_registers();
         vmem_unit_->set_mode(IVMemUnit::Mode::UNPROTECTED);
     }
 
@@ -96,19 +106,23 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
         auto accessor = instruction_unit_->get_accessor(MemAccessMode::READ_WRITE);
         byte_t opcode = static_cast<byte_t>(accessor->readByte_At_IR());
         accessor->advance_IR(1);
+        
+        std::vector<byte_t> params;
+        int param_count = get_additional_bytes(opcode);
+        for (int i = 0; i < param_count; ++i) {
+            params.push_back(static_cast<byte_t>(accessor->readByte_At_IR()));
+            accessor->advance_IR(1);
+        }
+        
+        // Log instruction before executing
+        log_instruction(opcode, params);
+        
         if (opcode == OPCODE_HALT) { // HALT instruction
             halted = true;
             return;
         }
         if (opcode == OPCODE_NOP) { // NOP instruction
             return;
-        }
-
-        std::vector<byte_t> params;
-        int param_count = get_additional_bytes(opcode);
-        for (int i = 0; i < param_count; ++i) {
-            params.push_back(static_cast<byte_t>(accessor->readByte_At_IR()));
-            accessor->advance_IR(1);
         }
 
         if(opcode >= OPCODE_LD_REG_IMM_W && opcode <= OPCODE_STAL_ADDR_REG_B) {
@@ -609,6 +623,77 @@ inline VMemUnit& get_concrete_vmemunit(std::shared_ptr<IVMemUnit>& interface) {
             default:
                 throw runtime_error("Invalid system operation opcode");
         }   
+    }
+
+    void Cpu::enable_logging(const std::string& logfile) {
+        log_file_.open(logfile);
+        if (!log_file_.is_open()) {
+            throw runtime_error("Failed to open log file: " + logfile);
+        }
+        logging_enabled_ = true;
+        log_file_ << "=== Pendragon VM Execution Log ===" << std::endl;
+        log_file_ << std::endl;
+    }
+
+    void Cpu::log_instruction(byte_t opcode, const std::vector<byte_t>& params) {
+        if (!logging_enabled_) return;
+        
+        auto accessor = instruction_unit_->get_accessor(MemAccessMode::READ_ONLY);
+        addr_t ir_value = accessor->get_IR();
+        
+        log_file_ << "IR: 0x" << std::hex << std::setw(4) << std::setfill('0') << ir_value 
+                  << " | Opcode: 0x" << std::setw(2) << static_cast<int>(opcode);
+        
+        if (!params.empty()) {
+            log_file_ << " | Params: ";
+            for (size_t i = 0; i < params.size(); ++i) {
+                if (i > 0) log_file_ << " ";
+                log_file_ << "0x" << std::setw(2) << static_cast<int>(params[i]);
+            }
+        }
+        
+        auto ax_acc = AX->get_accessor();
+        auto bx_acc = BX->get_accessor();
+        auto cx_acc = CX->get_accessor();
+        auto dx_acc = DX->get_accessor();
+        auto ex_acc = EX->get_accessor();
+        
+        log_file_ << " | AX: 0x" << std::setw(4) << ax_acc->get_value()
+                  << " BX: 0x" << std::setw(4) << bx_acc->get_value()
+                  << " CX: 0x" << std::setw(4) << cx_acc->get_value()
+                  << " DX: 0x" << std::setw(4) << dx_acc->get_value()
+                  << " EX: 0x" << std::setw(4) << ex_acc->get_value();
+        
+        log_file_ << std::dec << std::endl;
+    }
+
+    void Cpu::log_registers() {
+        if (!logging_enabled_) return;
+        
+        auto ax_acc = AX->get_accessor();
+        auto bx_acc = BX->get_accessor();
+        auto cx_acc = CX->get_accessor();
+        auto dx_acc = DX->get_accessor();
+        auto ex_acc = EX->get_accessor();
+        
+        log_file_ << std::endl;
+        log_file_ << "=== Final Register State ===" << std::endl;
+        log_file_ << "AX: 0x" << std::hex << std::setw(4) << std::setfill('0') << ax_acc->get_value() << std::endl;
+        log_file_ << "BX: 0x" << std::setw(4) << bx_acc->get_value() << std::endl;
+        log_file_ << "CX: 0x" << std::setw(4) << cx_acc->get_value() << std::endl;
+        log_file_ << "DX: 0x" << std::setw(4) << dx_acc->get_value() << std::endl;
+        log_file_ << "EX: 0x" << std::setw(4) << ex_acc->get_value() << std::endl;
+        
+        auto accessor = instruction_unit_->get_accessor(MemAccessMode::READ_ONLY);
+        log_file_ << "IR: 0x" << std::setw(4) << accessor->get_IR() << std::endl;
+        log_file_ << "SP: 0x" << std::setw(4) << stack_->get_sp() << std::endl;
+        
+        log_file_ << "Flags: ";
+        log_file_ << "Z=" << (flags->is_set(Flag::ZERO) ? "1" : "0") << " ";
+        log_file_ << "C=" << (flags->is_set(Flag::CARRY) ? "1" : "0") << " ";
+        log_file_ << "S=" << (flags->is_set(Flag::SIGN) ? "1" : "0") << " ";
+        log_file_ << "O=" << (flags->is_set(Flag::OVERFLOW) ? "1" : "0");
+        log_file_ << std::dec << std::endl;
     }
 
 } // namespace lvm

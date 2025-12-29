@@ -54,7 +54,7 @@ void InstructionUnit::load_program(const std::vector<byte_t>& program) {
     auto code_accessor = code_ctx->create_paged_accessor(MemAccessMode::READ_WRITE);
     
     // Write program to code space across pages (optimized)
-    const size_t PAGE_SIZE = 256; // Assuming 256 bytes per page
+    const size_t PAGE_SIZE = 0x10000; // 64KB pages (65536 bytes)
     size_t program_size = program.size();
     addr32_t addr = 0;
     while (addr < program_size) {
